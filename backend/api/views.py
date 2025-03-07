@@ -12,6 +12,7 @@ import datetime
 from django.db.models import Count
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db.models import Count
 
 from .serializers import (
     UserSerializer, UserCreateSerializer, ChangePasswordSerializer,
@@ -222,9 +223,6 @@ class DashboardStatsView(generics.GenericAPIView):
     """
     serializer_class = DashboardStatsSerializer
     permission_classes = [IsAuthenticated]
-    serializer_class = DashboardStatsSerializer
-    permission_classes = [IsAuthenticated]
-
     
     def get(self, request, *args, **kwargs):
         """
@@ -391,101 +389,7 @@ class DashboardStatsView(generics.GenericAPIView):
         
         serializer = self.get_serializer(data)
         return Response(serializer.data)
-    """
-    API לקבלת סטטיסטיקות עבור לוח המחוונים
-    """
-    serializer_class = DashboardStatsSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request, *args, **kwargs):
-        """
-        קבל נתונים סטטיסטיים עבור לוח המחוונים
-        """
-        # סך כל ההפניות
-        total_referrals = Referral.objects.count()
-        
-        # הפניות פתוחות (כל מה שלא הושלם)
-        open_referrals = Referral.objects.exclude(status='completed').count()
-        
-        # הפניות דחופות
-        urgent_referrals = Referral.objects.filter(priority='urgent').exclude(status__in=['completed', 'cancelled']).count()
-        
-        # תורים להיום
-        today = timezone.now().date()
-        today_appointments = Referral.objects.filter(appointment_date__date=today).count()
-        
-        # תורים לשבוע הקרוב
-        week_later = today + datetime.timedelta(days=7)
-        week_appointments = Referral.objects.filter(
-            appointment_date__date__gte=today,
-            appointment_date__date__lte=week_later
-        ).count()
-        
-        # תורים שעברו והסטטוס לא "הושלם"
-        overdue_appointments = Referral.objects.filter(
-            appointment_date__lt=timezone.now(),
-            status__in=['new', 'in_progress', 'waiting_for_approval', 'appointment_scheduled']
-        ).count()
-        
-        # התפלגות לפי סטטוס
-        status_counts = Referral.objects.values('status').annotate(count=Count('status'))
-        status_breakdown = {item['status']: item['count'] for item in status_counts}
-        
-        # התפלגות לפי עדיפות
-        priority_counts = Referral.objects.values('priority').annotate(count=Count('priority'))
-        priority_breakdown = {item['priority']: item['count'] for item in priority_counts}
-        
-        # התפלגות לפי סוג הפניה
-        referral_types_counts = Referral.objects.values('referral_type').annotate(count=Count('referral_type'))
-        referral_types_breakdown = {item['referral_type']: item['count'] for item in referral_types_counts}
-        
-        # סטטיסטיקות חודשיות (6 חודשים אחרונים)
-        six_months_ago = timezone.now() - datetime.timedelta(days=180)
-        monthly_stats = []
-        
-        current_date = six_months_ago
-        while current_date <= timezone.now():
-            month_start = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            if current_date.month == 12:
-                month_end = current_date.replace(year=current_date.year+1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(seconds=1)
-            else:
-                month_end = current_date.replace(month=current_date.month+1, day=1, hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(seconds=1)
-            
-            created_count = Referral.objects.filter(created_at__gte=month_start, created_at__lte=month_end).count()
-            completed_count = Referral.objects.filter(status='completed', updated_at__gte=month_start, updated_at__lte=month_end).count()
-            
-            monthly_stats.append({
-                'month': month_start.strftime('%Y-%m'),
-                'month_display': month_start.strftime('%m/%Y'),
-                'created': created_count,
-                'completed': completed_count
-            })
-            
-            # עבור לחודש הבא
-            if current_date.month == 12:
-                current_date = current_date.replace(year=current_date.year+1, month=1)
-            else:
-                current_date = current_date.replace(month=current_date.month+1)
-        
-        # הכן את המידע לסריאלייזר
-        data = {
-            'total_referrals': total_referrals,
-            'open_referrals': open_referrals,
-            'urgent_referrals': urgent_referrals,
-            'today_appointments': today_appointments,
-            'week_appointments': week_appointments,
-            'overdue_appointments': overdue_appointments,
-            'status_breakdown': status_breakdown,
-            'priority_breakdown': priority_breakdown,
-            'referral_types_breakdown': referral_types_breakdown,
-            'monthly_stats': monthly_stats
-        }
-        
-        serializer = self.get_serializer(data)
-        return Response(serializer.data)
-
 # יש להוסיף את השורה הבאה לייבוא בראש הקובץ
-from django.db.models import Count
 
 # ולהוסיף את המחלקות הבאות בסוף הקובץ
 

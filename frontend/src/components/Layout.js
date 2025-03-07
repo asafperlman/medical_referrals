@@ -94,8 +94,8 @@ const Layout = () => {
   const navItems = [
     { text: 'לוח בקרה', path: '/', icon: <DashboardIcon />, notification: null },
     { text: 'הפניות רפואיות', path: '/referrals', icon: <MedicalServicesIcon />, notification: null },
-    { text: 'הוספת הפניה', path: '/referrals/new', icon: <AddIcon />, notification: null },
-    { text: 'תורים להיום', path: '/appointments', icon: <CalendarTodayIcon />, notification: 3 },
+    { text: 'הוספת הפניה', path: '/referrals', state: { openForm: true }, icon: <AddIcon />, notification: null },
+    { text: 'תורים להיום', path: '/referrals', state: { todayAppointments: true }, icon: <CalendarTodayIcon />, notification: 3 },
   ];
   
   // פריטי ניווט למנהלים בלבד
@@ -186,12 +186,12 @@ const Layout = () => {
       </Box>
       
       {/* תפריט ניווט ראשי */}
-      <List sx={{ pt: 1 }}>
+      <List sx={{ pt: 1, pb: isMobile ? 10 : 0 }}>
         {navItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => handleNavigate(item.path)}
+              selected={location.pathname === item.path && !item.state}
+              onClick={() => handleNavigate(item.path, item.state)}
               sx={{
                 borderRadius: '0 20px 20px 0',
                 ml: 1,
@@ -218,7 +218,7 @@ const Layout = () => {
               <ListItemIcon 
                 sx={{ 
                   minWidth: 40,
-                  color: location.pathname === item.path ? theme.palette.primary.main : 'inherit' 
+                  color: location.pathname === item.path && !item.state ? theme.palette.primary.main : 'inherit' 
                 }}
               >
                 {item.icon}
@@ -227,13 +227,13 @@ const Layout = () => {
                 primary={
                   <Typography 
                     variant="body2" 
-                    fontWeight={location.pathname === item.path ? 600 : 400}
+                    fontWeight={location.pathname === item.path && !item.state ? 600 : 400}
                   >
                     {item.text}
                   </Typography>
                 } 
               />
-              {location.pathname === item.path && (
+              {location.pathname === item.path && !item.state && (
                 <KeyboardArrowRightIcon 
                   fontSize="small" 
                   sx={{ color: theme.palette.primary.main }}
@@ -372,7 +372,15 @@ const Layout = () => {
       )}
       
       {/* כפתור התנתקות בתחתית התפריט */}
-      <Box sx={{ position: 'absolute', bottom: 0, width: '100%', p: 2 }}>
+      <Box sx={{ 
+        position: 'fixed', 
+        bottom: 0, 
+        width: drawerWidth, 
+        p: 2, 
+        backgroundColor: theme.palette.background.paper,
+        borderTop: `1px solid ${theme.palette.divider}`,
+        zIndex: 1
+      }}>
         <Button
           fullWidth
           variant="outlined"
@@ -421,9 +429,7 @@ const Layout = () => {
             <Typography variant="h6" noWrap component="div" fontWeight={600} color="primary">
               {location.pathname === '/' && 'לוח בקרה'}
               {location.pathname === '/referrals' && 'הפניות רפואיות'}
-              {location.pathname === '/referrals/new' && 'הוספת הפניה חדשה'}
               {location.pathname.includes('/referrals/') && location.pathname !== '/referrals/new' && 'פרטי הפניה'}
-              {location.pathname === '/appointments' && 'תורים להיום'}
               {location.pathname === '/users' && 'ניהול משתמשים'}
               {location.pathname === '/audit-logs' && 'תיעוד פעולות'}
               {location.pathname === '/settings' && 'הגדרות מערכת'}

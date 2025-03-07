@@ -258,8 +258,28 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
 class DashboardStatsSerializer(serializers.Serializer):
     """
-    סריאלייזר מורחב לנתוני לוח המחוונים
+    סריאלייזר לנתוני לוח המחוונים
     """
+    total_referrals = serializers.IntegerField()
+    open_referrals = serializers.IntegerField()
+    urgent_referrals = serializers.IntegerField()
+    pending_soldiers = serializers.IntegerField()
+    scheduled_appointments = serializers.IntegerField()
+    upcoming_appointments = serializers.IntegerField()
+    long_waiting_referrals = serializers.IntegerField()
+    today_completed = serializers.IntegerField()
+    week_completed = serializers.IntegerField()
+    today_appointments = serializers.IntegerField()
+    week_appointments = serializers.IntegerField()
+    overdue_appointments = serializers.IntegerField()
+    status_breakdown = serializers.DictField()
+    priority_breakdown = serializers.DictField()
+    referral_types_breakdown = serializers.DictField()
+    team_breakdown = serializers.DictField()
+    monthly_stats = serializers.ListField()
+    today_referrals = serializers.ListField()
+    upcoming_referrals = serializers.ListField()
+    urgent_pending_referrals = serializers.ListField()    
     total_referrals = serializers.IntegerField()
     open_referrals = serializers.IntegerField()
     urgent_referrals = serializers.IntegerField()

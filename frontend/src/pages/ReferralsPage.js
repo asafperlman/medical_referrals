@@ -79,7 +79,7 @@ const ReferralsPage = () => {
   });
   
   // מצבים עבור הטופס
-  const [openForm, setOpenForm] = useState(false);
+  const [openForm, setOpenForm] = useState(location.state?.openForm || false);
   const [editingReferral, setEditingReferral] = useState(null);
   
   // רשימות ערכים לתפריטי הסינון
@@ -126,22 +126,36 @@ const ReferralsPage = () => {
   
   // טעינת נתונים ראשונית
   useEffect(() => {
-    // בדוק אם הגענו מדף אחר עם סינון מוגדר
-    if (location.state?.filterPriority) {
-      setFilters(prev => ({
-        ...prev,
-        priority: [location.state.filterPriority]
-      }));
+    // Clear location state after processing
+    if (location.state) {
+      // Apply filters from location state if necessary
+      if (location.state.filterPriority) {
+        setFilters(prev => ({
+          ...prev,
+          priority: [location.state.filterPriority]
+        }));
+      }
+      
+      if (location.state.todayAppointments) {
+        // Set filter for today's appointments
+        const today = new Date().toISOString().split('T')[0];
+        setFilters(prev => ({
+          ...prev,
+          appointment_date_after: today,
+          appointment_date_before: today
+        }));
+      }
+      
+      // Replace the URL without the state
+      navigate(location.pathname, { replace: true });
     }
     
     fetchReferrals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   // לטעון מחדש כאשר עמוד, מספר שורות או סינון משתנים
   useEffect(() => {
     fetchReferrals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, rowsPerPage]);
   
   // פונקציית טעינת ההפניות
