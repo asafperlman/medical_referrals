@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, FormHelperText, Switch, FormControlLabel, Typography, Divider, CircularProgress, Alert } from '@mui/material';
 
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { DateTimePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { LocalizationProvider } from '@mui/x-date-pickers';
 import { he } from 'date-fns/locale';
 
 const ReferralForm = ({ open, onClose, onSave, referral = null }) => {

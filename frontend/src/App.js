@@ -5,7 +5,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { createContext, useState, useEffect, useMemo } from 'react';
 import { rtlCache } from './utils/rtlCache';
-import rtlPlugin from 'stylis-plugin-rtl';
 import { CacheProvider } from '@emotion/react';
 // משתמש והרשאות
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -112,15 +111,16 @@ function App() {
       <ColorModeContext.Provider value={colorMode}>
         <ThemeProvider theme={theme}>
           <CssBaseline />
-          <AuthProvider>
-            <Router>
+          <Router>
+            <AuthProvider>
               <AppRoutes />
-            </Router>
-          </AuthProvider>
+            </AuthProvider>
+          </Router>
         </ThemeProvider>
       </ColorModeContext.Provider>
     </CacheProvider>
   );
+
 }
 
 // מרכיב הניתובים המוגנים בהרשאות

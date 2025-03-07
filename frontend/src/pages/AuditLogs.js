@@ -34,7 +34,6 @@ import {
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  FilterList as FilterListIcon,
   Clear as ClearIcon,
   Visibility as VisibilityIcon,
   ExpandMore as ExpandMoreIcon,
@@ -43,10 +42,6 @@ import {
   History as HistoryIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { he } from 'date-fns/locale';
 
 const AuditLogs = () => {
   const { api } = useAuth();
@@ -64,8 +59,8 @@ const AuditLogs = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     action_type: [],
-    timestamp_after: null,
-    timestamp_before: null,
+    timestamp_after: '',
+    timestamp_before: '',
     user: '',
     search: '',
   });
@@ -116,11 +111,11 @@ const AuditLogs = () => {
       }
       
       if (filters.timestamp_after) {
-        params.timestamp__gte = filters.timestamp_after.toISOString();
+        params.timestamp__gte = filters.timestamp_after;
       }
       
       if (filters.timestamp_before) {
-        params.timestamp__lte = filters.timestamp_before.toISOString();
+        params.timestamp__lte = filters.timestamp_before;
       }
       
       if (filters.user) {
@@ -167,8 +162,8 @@ const AuditLogs = () => {
   const handleClearFilters = () => {
     setFilters({
       action_type: [],
-      timestamp_after: null,
-      timestamp_before: null,
+      timestamp_after: '',
+      timestamp_before: '',
       user: '',
       search: '',
     });
@@ -331,29 +326,25 @@ const AuditLogs = () => {
               </Grid>
               
               <Grid item xs={12} sm={6} md={3}>
-                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={he}>
-                  <DatePicker
-                    label="מתאריך"
-                    value={filters.timestamp_after}
-                    onChange={(date) => handleFilterChange('timestamp_after', date)}
-                    renderInput={(params) => (
-                      <TextField {...params} fullWidth />
-                    )}
-                  />
-                </LocalizationProvider>
+                <TextField
+                  type="date"
+                  label="מתאריך"
+                  value={filters.timestamp_after}
+                  onChange={(e) => handleFilterChange('timestamp_after', e.target.value)}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
               </Grid>
               
               <Grid item xs={12} sm={6} md={3}>
-                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={he}>
-                  <DatePicker
-                    label="עד תאריך"
-                    value={filters.timestamp_before}
-                    onChange={(date) => handleFilterChange('timestamp_before', date)}
-                    renderInput={(params) => (
-                      <TextField {...params} fullWidth />
-                    )}
-                  />
-                </LocalizationProvider>
+                <TextField
+                  type="date"
+                  label="עד תאריך"
+                  value={filters.timestamp_before}
+                  onChange={(e) => handleFilterChange('timestamp_before', e.target.value)}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
               </Grid>
             </Grid>
           </Box>

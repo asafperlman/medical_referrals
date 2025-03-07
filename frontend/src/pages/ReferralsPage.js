@@ -38,7 +38,6 @@ import {
 import {
   Add as AddIcon,
   Search as SearchIcon,
-  FilterList as FilterListIcon,
   Clear as ClearIcon,
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -53,7 +52,6 @@ import ReferralForm from '../components/ReferralForm';
 
 const ReferralsPage = () => {
   const { api } = useAuth();
-  const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -311,13 +309,6 @@ const ReferralsPage = () => {
       console.error('Error exporting referrals:', err);
       setError('אירעה שגיאה בייצוא הנתונים');
     }
-  };
-  
-  // עיצוב תאריך
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('he-IL');
   };
   
   // עיצוב תאריך ושעה

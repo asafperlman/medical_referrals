@@ -1,6 +1,7 @@
 // medical-referrals/frontend/src/pages/Dashboard.js
+import { Chip } from '@mui/material';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Grid, 
   Paper, 
@@ -68,7 +69,8 @@ const Dashboard = () => {
   const [urgentReferrals, setUrgentReferrals] = useState([]);
   const [todayAppointments, setTodayAppointments] = useState([]);
   
-  const fetchDashboardData = async () => {
+  // useCallback to prevent the function from being recreated on every render
+  const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -102,12 +104,11 @@ const Dashboard = () => {
       setError('אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.');
       setLoading(false);
     }
-  };
+  }, [api]); // Include api in dependencies
   
-  // תקן את ה-useEffect להוסיף את התלות החסרה
-    useEffect(() => {
-        fetchDashboardData();
-    }, [fetchDashboardData]); // הוסף את התלות החסרה
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
   
   // עיצוב משתנים וצבעים לגרפים
   const isDarkMode = theme.palette.mode === 'dark';
@@ -487,6 +488,69 @@ const Dashboard = () => {
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
                   <Typography variant="body1" color="text.secondary">
                     אין הפניות דחופות כרגע
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* רשימת התורים להיום */}
+        <Grid item xs={12}>
+          <Card sx={{ mt: 3 }}>
+            <CardHeader 
+              title="תורים להיום" 
+              action={
+                <Tooltip title="צפה בכל התורים להיום">
+                  <IconButton 
+                    onClick={() => navigate('/referrals', { state: { todayAppointments: true } })}
+                  >
+                    <EventIcon />
+                  </IconButton>
+                </Tooltip>
+              }
+            />
+            <Divider />
+            <CardContent>
+              {todayAppointments.length > 0 ? (
+                <List>
+                  {todayAppointments.map((appointment) => (
+                    <React.Fragment key={appointment.id}>
+                      <ListItem 
+                        button 
+                        onClick={() => navigate(`/referrals/${appointment.id}`)}
+                        sx={{ borderRadius: 1 }}
+                      >
+                        <ListItemIcon>
+                          <EventIcon color="primary" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={appointment.full_name}
+                          secondary={
+                            <>
+                              <Typography component="span" variant="body2" color="text.primary">
+                                {appointment.referral_details}
+                              </Typography>
+                              {appointment.appointment_date && ` — ${new Date(appointment.appointment_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
+                              {appointment.appointment_location && ` — ${appointment.appointment_location}`}
+                            </>
+                          }
+                        />
+                        <Chip 
+                          label={appointment.priority_display}
+                          color={priorityColors[appointment.priority] || 'default'}
+                          size="small"
+                          sx={{ ml: 1 }}
+                        />
+                      </ListItem>
+                      <Divider variant="inset" component="li" />
+                    </React.Fragment>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    אין תורים מתוכננים להיום
                   </Typography>
                 </Box>
               )}
