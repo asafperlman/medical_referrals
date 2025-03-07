@@ -1,5 +1,4 @@
 // medical-referrals/frontend/src/pages/Dashboard.js
-import { Chip } from '@mui/material';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
@@ -19,7 +18,9 @@ import {
   Alert,
   IconButton,
   Tooltip,
-  useTheme
+  useTheme,
+  Chip,
+  Button
 } from '@mui/material';
 import { 
   Assignment as AssignmentIcon,
@@ -82,26 +83,41 @@ const Dashboard = () => {
       // קבלת הפניות דחופות
       const urgentResponse = await api.get('/referrals/', {
         params: {
-          priority: 'urgent',
+          priority__in: 'urgent,high',
           status__in: 'new,in_progress,waiting_for_approval,appointment_scheduled',
           limit: 5
         }
       });
-      setUrgentReferrals(urgentResponse.data.results);
+      setUrgentReferrals(urgentResponse.data.results || []);
       
       // קבלת תורים להיום
+      const today = new Date().toISOString().split('T')[0];
       const todayResponse = await api.get('/referrals/', {
         params: {
-          today_appointments: true,
+          appointment_date__gte: `${today}T00:00:00`,
+          appointment_date__lte: `${today}T23:59:59`,
           limit: 5
         }
       });
-      setTodayAppointments(todayResponse.data.results);
+      setTodayAppointments(todayResponse.data.results || []);
       
       setLoading(false);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-      setError('אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.');
+      
+      // שיפור הודעת שגיאה
+      if (err.response) {
+        if (err.response.status === 500) {
+          setError('אירעה שגיאה בשרת. ייתכן שיש מיגרציות שלא יושמו. נא לפנות למנהל המערכת.');
+        } else {
+          setError(`שגיאה בטעינת הנתונים: ${err.response.status}. אנא נסה שוב.`);
+        }
+      } else if (err.request) {
+        setError('לא התקבלה תגובה מהשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+      } else {
+        setError('אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.');
+      }
+      
       setLoading(false);
     }
   }, [api]); // Include api in dependencies
@@ -179,7 +195,16 @@ const Dashboard = () => {
   
   // נתונים לגרף סטטוסים
   const getStatusChartData = () => {
-    if (!stats) return { labels: [], datasets: [] };
+    if (!stats || !stats.status_breakdown) {
+      return { 
+        labels: [], 
+        datasets: [{ 
+          label: 'הפניות לפי סטטוס',
+          data: [], 
+          backgroundColor: [] 
+        }] 
+      };
+    }
     
     const statusLabels = {
       new: 'חדש',
@@ -188,6 +213,12 @@ const Dashboard = () => {
       appointment_scheduled: 'תור נקבע',
       completed: 'הושלם',
       cancelled: 'בוטל',
+      requires_coordination: 'דרוש תיאום',
+      requires_soldier_coordination: 'תיאום עם חייל',
+      waiting_for_medical_date: 'ממתין לתאריך',
+      waiting_for_budget_approval: 'ממתין לאישור',
+      waiting_for_doctor_referral: 'ממתין להפניה',
+      no_show: 'לא הגיע'
     };
     
     const labels = Object.keys(stats.status_breakdown).map(key => statusLabels[key] || key);
@@ -208,13 +239,24 @@ const Dashboard = () => {
   
   // נתונים לגרף עדיפויות
   const getPriorityChartData = () => {
-    if (!stats) return { labels: [], datasets: [] };
+    if (!stats || !stats.priority_breakdown) {
+      return { 
+        labels: [], 
+        datasets: [{ 
+          label: 'הפניות לפי עדיפות',
+          data: [], 
+          backgroundColor: [] 
+        }] 
+      };
+    }
     
     const priorityLabels = {
       low: 'נמוכה',
       medium: 'בינונית',
       high: 'גבוהה',
       urgent: 'דחופה',
+      highest: 'דחוף ביותר',
+      minimal: 'זניח',
     };
     
     const labels = Object.keys(stats.priority_breakdown).map(key => priorityLabels[key] || key);
@@ -235,7 +277,27 @@ const Dashboard = () => {
   
   // נתונים לגרף הפניות חודשי
   const getMonthlyChartData = () => {
-    if (!stats || !stats.monthly_stats) return { labels: [], datasets: [] };
+    if (!stats || !stats.monthly_stats) {
+      return { 
+        labels: [], 
+        datasets: [
+          {
+            label: 'הפניות חדשות',
+            data: [],
+            borderColor: '#2196F3',
+            backgroundColor: 'rgba(33, 150, 243, 0.2)',
+            tension: 0.3,
+          },
+          {
+            label: 'הפניות שהושלמו',
+            data: [],
+            borderColor: '#4CAF50',
+            backgroundColor: 'rgba(76, 175, 80, 0.2)',
+            tension: 0.3,
+          }
+        ] 
+      };
+    }
     
     return {
       labels: stats.monthly_stats.map(item => item.month_display),
@@ -260,20 +322,33 @@ const Dashboard = () => {
   
   // נתונים לגרף סוגי הפניות
   const getReferralTypesChartData = () => {
-    if (!stats) return { labels: [], datasets: [] };
+    if (!stats || !stats.referral_types_breakdown) {
+      return { 
+        labels: [], 
+        datasets: [{ 
+          label: 'סוגי הפניות',
+          data: [], 
+          backgroundColor: [] 
+        }] 
+      };
+    }
     
     const typeLabels = {
       specialist: 'רופא מומחה',
       imaging: 'בדיקות דימות',
       lab: 'בדיקות מעבדה',
       procedure: 'פרוצדורה',
+      therapy: 'טיפול',
+      surgery: 'ניתוח',
+      consultation: 'ייעוץ',
+      dental: 'טיפול שיניים',
       other: 'אחר',
     };
     
     const labels = Object.keys(stats.referral_types_breakdown).map(key => typeLabels[key] || key);
     const data = Object.values(stats.referral_types_breakdown);
     const backgroundColor = [
-      '#3F51B5', '#E91E63', '#00BCD4', '#FFC107', '#9C27B0', '#8BC34A'
+      '#3F51B5', '#E91E63', '#00BCD4', '#FFC107', '#9C27B0', '#8BC34A', '#FF5722', '#607D8B', '#795548'
     ];
     
     return {
@@ -298,16 +373,37 @@ const Dashboard = () => {
   
   if (error) {
     return (
-      <Alert 
-        severity="error" 
-        action={
-          <IconButton color="inherit" size="small" onClick={fetchDashboardData}>
-            <RefreshIcon />
-          </IconButton>
-        }
-      >
-        {error}
-      </Alert>
+      <Box p={3}>
+        <Alert 
+          severity="error" 
+          action={
+            <Button color="inherit" size="small" onClick={fetchDashboardData}>
+              נסה שוב
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+        
+        <Paper sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h5" align="center" gutterBottom>
+            לא ניתן להציג את הנתונים כרגע
+          </Typography>
+          <Typography align="center">
+            אנא ודא שכל המיגרציות יושמו בהצלחה בצד השרת.
+          </Typography>
+          <Box display="flex" justifyContent="center" mt={3}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={fetchDashboardData}
+              startIcon={<RefreshIcon />}
+            >
+              רענן נתונים
+            </Button>
+          </Box>
+        </Paper>
+      </Box>
     );
   }
   
@@ -475,7 +571,7 @@ const Dashboard = () => {
                               <Typography component="span" variant="body2" color="text.primary">
                                 {referral.referral_details}
                               </Typography>
-                              {` — ${referral.status_display}`}
+                              {` — ${referral.status_display || referral.status}`}
                             </>
                           }
                         />
@@ -537,8 +633,8 @@ const Dashboard = () => {
                           }
                         />
                         <Chip 
-                          label={appointment.priority_display}
-                          color={priorityColors[appointment.priority] || 'default'}
+                          label={appointment.priority_display || appointment.priority}
+                          color={priorityColors[appointment.priority] ? appointment.priority : 'default'}
                           size="small"
                           sx={{ ml: 1 }}
                         />

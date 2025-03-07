@@ -1,6 +1,6 @@
 // medical-referrals/frontend/src/pages/ReferralsPage.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -46,6 +46,7 @@ import {
   Assignment as AssignmentIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import ReferralForm from '../components/ReferralForm';
@@ -54,6 +55,7 @@ const ReferralsPage = () => {
   const { api } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
   
   // מצבים עבור הטבלה
   const [referrals, setReferrals] = useState([]);
@@ -79,24 +81,29 @@ const ReferralsPage = () => {
   });
   
   // מצבים עבור הטופס
-  const [openForm, setOpenForm] = useState(location.state?.openForm || false);
+  const [openForm, setOpenForm] = useState(false);
   const [editingReferral, setEditingReferral] = useState(null);
   
   // רשימות ערכים לתפריטי הסינון
   const statusOptions = [
-    { value: 'new', label: 'חדש' },
-    { value: 'in_progress', label: 'בטיפול' },
-    { value: 'waiting_for_approval', label: 'ממתין לאישור' },
-    { value: 'appointment_scheduled', label: 'תור נקבע' },
+    { value: 'appointment_scheduled', label: 'נקבע תור' },
+    { value: 'requires_coordination', label: 'דרוש תיאום' },
+    { value: 'requires_soldier_coordination', label: 'דרוש תיאום עם חייל' },
+    { value: 'waiting_for_medical_date', label: 'ממתין לתאריך' },
     { value: 'completed', label: 'הושלם' },
     { value: 'cancelled', label: 'בוטל' },
+    { value: 'waiting_for_budget_approval', label: 'ממתין לאישור תקציבי' },
+    { value: 'waiting_for_doctor_referral', label: 'ממתין להפניה מרופא' },
+    { value: 'no_show', label: 'לא הגיע לתור' },
   ];
   
   const priorityOptions = [
-    { value: 'low', label: 'נמוכה' },
-    { value: 'medium', label: 'בינונית' },
-    { value: 'high', label: 'גבוהה' },
-    { value: 'urgent', label: 'דחופה' },
+    { value: 'highest', label: 'דחוף ביותר' },
+    { value: 'urgent', label: 'דחוף' },
+    { value: 'high', label: 'גבוה' },
+    { value: 'medium', label: 'בינוני' },
+    { value: 'low', label: 'נמוך' },
+    { value: 'minimal', label: 'זניח' },
   ];
   
   const referralTypeOptions = [
@@ -104,6 +111,10 @@ const ReferralsPage = () => {
     { value: 'imaging', label: 'בדיקות דימות' },
     { value: 'lab', label: 'בדיקות מעבדה' },
     { value: 'procedure', label: 'פרוצדורה' },
+    { value: 'therapy', label: 'טיפול' },
+    { value: 'surgery', label: 'ניתוח' },
+    { value: 'consultation', label: 'ייעוץ' },
+    { value: 'dental', label: 'טיפול שיניים' },
     { value: 'other', label: 'אחר' },
   ];
   
@@ -115,51 +126,25 @@ const ReferralsPage = () => {
     appointment_scheduled: 'secondary',
     completed: 'default',
     cancelled: 'error',
+    requires_coordination: 'info',
+    requires_soldier_coordination: 'warning',
+    waiting_for_medical_date: 'warning',
+    waiting_for_budget_approval: 'warning',
+    waiting_for_doctor_referral: 'error',
+    no_show: 'error',
   };
   
   const priorityColors = {
-    low: 'success',
-    medium: 'info',
-    high: 'warning',
+    highest: 'error',
     urgent: 'error',
+    high: 'warning',
+    medium: 'info',
+    low: 'success',
+    minimal: 'default',
   };
   
-  // טעינת נתונים ראשונית
-  useEffect(() => {
-    // Clear location state after processing
-    if (location.state) {
-      // Apply filters from location state if necessary
-      if (location.state.filterPriority) {
-        setFilters(prev => ({
-          ...prev,
-          priority: [location.state.filterPriority]
-        }));
-      }
-      
-      if (location.state.todayAppointments) {
-        // Set filter for today's appointments
-        const today = new Date().toISOString().split('T')[0];
-        setFilters(prev => ({
-          ...prev,
-          appointment_date_after: today,
-          appointment_date_before: today
-        }));
-      }
-      
-      // Replace the URL without the state
-      navigate(location.pathname, { replace: true });
-    }
-    
-    fetchReferrals();
-  }, []);
-  
-  // לטעון מחדש כאשר עמוד, מספר שורות או סינון משתנים
-  useEffect(() => {
-    fetchReferrals();
-  }, [page, rowsPerPage]);
-  
-  // פונקציית טעינת ההפניות
-  const fetchReferrals = async () => {
+  // פונקציית טעינת ההפניות עם useCallback
+  const fetchReferrals = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -184,15 +169,74 @@ const ReferralsPage = () => {
       
       const response = await api.get('/referrals/', { params });
       
-      setReferrals(response.data.results);
-      setTotalCount(response.data.count);
+      // בדיקת תקינות התגובה
+      if (response.data && 'results' in response.data) {
+        setReferrals(response.data.results || []);
+        setTotalCount(response.data.count || 0);
+      } else {
+        // אם התגובה לא מכילה את המבנה הצפוי
+        console.error('Unexpected API response format:', response.data);
+        setError('תגובת השרת לא תקינה. אנא פנה לתמיכה.');
+      }
+      
       setLoading(false);
     } catch (err) {
       console.error('Error fetching referrals:', err);
-      setError('אירעה שגיאה בטעינת הנתונים');
+      
+      // הודעת שגיאה משופרת
+      if (err.response) {
+        if (err.response.status === 500) {
+          setError('אירעה שגיאה בשרת. ייתכן שיש מיגרציות שלא יושמו. נא לפנות למנהל המערכת.');
+        } else {
+          setError(`שגיאה בטעינת ההפניות: ${err.response.status}. אנא נסה שוב.`);
+        }
+      } else if (err.request) {
+        setError('לא התקבלה תגובה מהשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+      } else {
+        setError('אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.');
+      }
+      
       setLoading(false);
     }
-  };
+  }, [api, page, rowsPerPage, searchQuery, filters]);
+  
+  // טעינת נתונים ראשונית
+  useEffect(() => {
+    // Clear location state after processing
+    if (location.state) {
+      // Apply filters from location state if necessary
+      if (location.state.filterPriority) {
+        setFilters(prev => ({
+          ...prev,
+          priority: [location.state.filterPriority]
+        }));
+      }
+      
+      if (location.state.todayAppointments) {
+        // Set filter for today's appointments
+        const today = new Date().toISOString().split('T')[0];
+        setFilters(prev => ({
+          ...prev,
+          appointment_date_after: today,
+          appointment_date_before: today
+        }));
+      }
+      
+      if (location.state.openForm) {
+        setOpenForm(true);
+      }
+      
+      // Replace the URL without the state
+      navigate(location.pathname, { replace: true });
+    }
+    
+    fetchReferrals();
+  }, [location.pathname, location.state, navigate, fetchReferrals]);
+  
+  // לטעון מחדש כאשר עמוד או מספר שורות משתנים
+  useEffect(() => {
+    fetchReferrals();
+  }, [page, rowsPerPage, fetchReferrals]);
   
   // חיפוש והחלת סינון
   const handleSearch = () => {
@@ -264,6 +308,7 @@ const ReferralsPage = () => {
       console.error('Error saving referral:', err);
       setError('אירעה שגיאה בשמירת ההפניה');
       setLoading(false);
+      throw err; // חשוב להעביר את השגיאה הלאה כדי שהטופס יוכל להציג אותה
     }
   };
   
@@ -410,6 +455,14 @@ const ReferralsPage = () => {
               נקה סינון
             </Button>
           </Grid>
+          
+          <Grid item>
+            <Tooltip title="רענן">
+              <IconButton onClick={fetchReferrals}>
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Grid>
         </Grid>
         
         <Collapse in={showFilters}>
@@ -431,8 +484,8 @@ const ReferralsPage = () => {
                         {selected.map((value) => (
                           <Chip 
                             key={value} 
-                            label={statusOptions.find(option => option.value === value)?.label}
-                            color={statusColors[value]}
+                            label={statusOptions.find(option => option.value === value)?.label || value}
+                            color={statusColors[value] || 'default'}
                             size="small"
                           />
                         ))}
@@ -463,8 +516,8 @@ const ReferralsPage = () => {
                         {selected.map((value) => (
                           <Chip 
                             key={value} 
-                            label={priorityOptions.find(option => option.value === value)?.label}
-                            color={priorityColors[value]}
+                            label={priorityOptions.find(option => option.value === value)?.label || value}
+                            color={priorityColors[value] || 'default'}
                             size="small"
                           />
                         ))}
@@ -495,7 +548,7 @@ const ReferralsPage = () => {
                         {selected.map((value) => (
                           <Chip 
                             key={value} 
-                            label={referralTypeOptions.find(option => option.value === value)?.label}
+                            label={referralTypeOptions.find(option => option.value === value)?.label || value}
                             size="small"
                           />
                         ))}
@@ -578,7 +631,15 @@ const ReferralsPage = () => {
       
       {/* הודעת שגיאה */}
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={fetchReferrals}>
+              נסה שוב
+            </Button>
+          }
+        >
           {error}
         </Alert>
       )}
@@ -660,15 +721,15 @@ const ReferralsPage = () => {
                   <TableCell>{referral.referral_details}</TableCell>
                   <TableCell>
                     <Chip 
-                      label={referral.status_display}
-                      color={statusColors[referral.status]}
+                      label={referral.status_display || statusOptions.find(o => o.value === referral.status)?.label || referral.status}
+                      color={statusColors[referral.status] || 'default'}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
                     <Chip 
-                      label={referral.priority_display}
-                      color={priorityColors[referral.priority]}
+                      label={referral.priority_display || priorityOptions.find(o => o.value === referral.priority)?.label || referral.priority}
+                      color={priorityColors[referral.priority] || 'default'}
                       size="small"
                     />
                   </TableCell>

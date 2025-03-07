@@ -1,6 +1,6 @@
 // medical-referrals/frontend/src/pages/ReferralDetail.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -10,15 +10,6 @@ import {
   Divider,
   Button,
   IconButton,
-  Chip,
-  Card,
-  CardHeader,
-  CardContent,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemSecondaryAction,
   CircularProgress,
   Alert,
   Dialog,
@@ -45,9 +36,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   Add as AddIcon,
   Send as SendIcon,
-  History as HistoryIcon,
   Download as DownloadIcon,
   Delete as RemoveIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
@@ -112,23 +103,32 @@ const ReferralDetail = () => {
   
   // צבעים עבור סטטוסים
   const statusColors = {
+    new: 'success',
+    in_progress: 'info',
+    waiting_for_approval: 'warning',
     appointment_scheduled: 'secondary',
-    requires_coordination: 'info',
     completed: 'success',
+    cancelled: 'error',
+    requires_coordination: 'info',
+    requires_soldier_coordination: 'warning',
+    waiting_for_medical_date: 'warning',
     waiting_for_budget_approval: 'warning',
     waiting_for_doctor_referral: 'error',
+    no_show: 'error',
   };
   
   // צבעים עבור עדיפויות
   const priorityColors = {
-    low: 'success',
-    medium: 'info',
-    high: 'warning',
+    highest: 'error',
     urgent: 'error',
+    high: 'warning',
+    medium: 'info',
+    low: 'success',
+    minimal: 'default',
   };
   
   // טעינת נתוני ההפניה
-  const fetchReferralData = async () => {
+  const fetchReferralData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -144,14 +144,27 @@ const ReferralDetail = () => {
       setLoading(false);
     } catch (err) {
       console.error('Error fetching referral data:', err);
-      setError('אירעה שגיאה בטעינת נתוני ההפניה');
+      // שיפור הודעת שגיאה
+      if (err.response) {
+        if (err.response.status === 404) {
+          setError('ההפניה לא נמצאה. ייתכן שהיא נמחקה או שהקישור שגוי.');
+        } else if (err.response.status === 500) {
+          setError('אירעה שגיאה בשרת. ייתכן שיש מיגרציות שלא יושמו. נא לפנות למנהל המערכת.');
+        } else {
+          setError(`שגיאה בטעינת פרטי ההפניה: ${err.response.status}. אנא נסה שוב.`);
+        }
+      } else if (err.request) {
+        setError('לא התקבלה תגובה מהשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+      } else {
+        setError('אירעה שגיאה בטעינת נתוני ההפניה');
+      }
       setLoading(false);
     }
-  };
+  }, [api, id]);
   
   useEffect(() => {
     fetchReferralData();
-  }, [id]);
+  }, [id, fetchReferralData]);
   
   // עיצוב התאריך
   const formatDate = (dateString) => {
@@ -296,7 +309,16 @@ const ReferralDetail = () => {
         >
           חזור לרשימה
         </Button>
-        <Alert severity="error">{error}</Alert>
+        <Alert 
+          severity="error"
+          action={
+            <Button color="inherit" size="small" onClick={fetchReferralData}>
+              נסה שוב
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
       </Box>
     );
   }
@@ -321,17 +343,25 @@ const ReferralDetail = () => {
     new: 'חדש',
     in_progress: 'בטיפול',
     waiting_for_approval: 'ממתין לאישור',
-    appointment_scheduled: 'תור נקבע',
+    appointment_scheduled: 'נקבע תור',
     completed: 'הושלם',
     cancelled: 'בוטל',
+    requires_coordination: 'דרוש תיאום',
+    requires_soldier_coordination: 'דרוש תיאום עם חייל',
+    waiting_for_medical_date: 'ממתין לתאריך',
+    waiting_for_budget_approval: 'ממתין לאישור תקציבי',
+    waiting_for_doctor_referral: 'ממתין להפניה מרופא',
+    no_show: 'לא הגיע לתור',
   };
   
   // כותרות עבור עדיפויות
   const priorityLabels = {
-    low: 'נמוכה',
-    medium: 'בינונית',
-    high: 'גבוהה',
-    urgent: 'דחופה',
+    highest: 'דחוף ביותר',
+    urgent: 'דחוף',
+    high: 'גבוה',
+    medium: 'בינוני',
+    low: 'נמוך',
+    minimal: 'זניח',
   };
   
   // כותרות עבור סוגי הפניות
@@ -340,6 +370,10 @@ const ReferralDetail = () => {
     imaging: 'בדיקות דימות',
     lab: 'בדיקות מעבדה',
     procedure: 'פרוצדורה',
+    therapy: 'טיפול',
+    surgery: 'ניתוח',
+    consultation: 'ייעוץ',
+    dental: 'טיפול שיניים',
     other: 'אחר',
   };
   
@@ -364,6 +398,11 @@ const ReferralDetail = () => {
         </Box>
         
         <Box>
+          <Tooltip title="רענן">
+            <IconButton onClick={fetchReferralData} sx={{ mr: 1 }}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="ערוך הפניה">
             <IconButton 
               color="primary" 
@@ -415,6 +454,14 @@ const ReferralDetail = () => {
                   value={referral.team} 
                 />
               </Grid>
+              {referral.reference_date && (
+                <Grid item xs={12} sm={6}>
+                  <InfoField 
+                    label="תאריך אסמכתא" 
+                    value={formatDate(referral.reference_date)} 
+                  />
+                </Grid>
+              )}
             </Grid>
           </Paper>
         </Grid>
@@ -446,15 +493,15 @@ const ReferralDetail = () => {
               <Grid item xs={12} sm={6}>
                 <InfoField 
                   label="סטטוס" 
-                  value={statusLabels[referral.status] || referral.status} 
-                  chipColor={statusColors[referral.status]}
+                  value={referral.status_display || statusLabels[referral.status] || referral.status} 
+                  chipColor={statusColors[referral.status] || 'default'}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <InfoField 
                   label="עדיפות" 
-                  value={priorityLabels[referral.priority] || referral.priority} 
-                  chipColor={priorityColors[referral.priority]}
+                  value={referral.priority_display || priorityLabels[referral.priority] || referral.priority} 
+                  chipColor={priorityColors[referral.priority] || 'default'}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -551,33 +598,45 @@ const ReferralDetail = () => {
             
             {/* רשימת מסמכים */}
             {documents.length > 0 ? (
-              <List>
+              <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }}>
                 {documents.map((doc) => (
-                  <ListItem key={doc.id} sx={{ bgcolor: 'background.paper', mb: 1, borderRadius: 1 }}>
-                    <ListItemIcon>
-                      <AttachmentIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={doc.title}
-                      secondary={
-                        <>
-                          <Typography component="span" variant="body2" color="text.primary">
-                            {formatDateTime(doc.uploaded_at)}
-                          </Typography>
-                          {doc.description && ` — ${doc.description}`}
-                          {doc.uploaded_by_name && ` | הועלה על ידי: ${doc.uploaded_by_name}`}
-                        </>
-                      }
-                    />
-                    <ListItemSecondaryAction>
+                  <Box 
+                    component="li" 
+                    key={doc.id} 
+                    sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      bgcolor: 'background.paper', 
+                      mb: 1, 
+                      p: 2,
+                      borderRadius: 1,
+                      boxShadow: 1
+                    }}
+                  >
+                    <Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AttachmentIcon sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="subtitle1" fontWeight="medium">
+                          {doc.title}
+                        </Typography>
+                      </Box>
+                      
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        {formatDateTime(doc.uploaded_at)}
+                        {doc.description && ` — ${doc.description}`}
+                        {doc.uploaded_by_name && ` | הועלה על ידי: ${doc.uploaded_by_name}`}
+                      </Typography>
+                    </Box>
+                    
+                    <Box>
                       <Tooltip title="הורד מסמך">
-                        <IconButton edge="end" onClick={() => handleDownloadDocument(doc)}>
+                        <IconButton onClick={() => handleDownloadDocument(doc)}>
                           <DownloadIcon />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="מחק מסמך">
                         <IconButton 
-                          edge="end" 
                           color="error"
                           onClick={() => {
                             setDocumentDeleting(doc.id);
@@ -587,10 +646,10 @@ const ReferralDetail = () => {
                           <RemoveIcon />
                         </IconButton>
                       </Tooltip>
-                    </ListItemSecondaryAction>
-                  </ListItem>
+                    </Box>
+                  </Box>
                 ))}
-              </List>
+              </Box>
             ) : (
               <Typography variant="body1" color="text.secondary" align="center" sx={{ py: 3 }}>
                 אין מסמכים מצורפים

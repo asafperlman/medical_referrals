@@ -62,7 +62,7 @@ const Layout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   
-  // סגירת תפריט בלחיצה על כל פריט - תיקון הבאג
+  // תיקון: סגירת תפריט בלחיצה על כל פריט
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
@@ -81,8 +81,9 @@ const Layout = () => {
     setAnchorEl(null);
   };
   
-  const handleNavigate = (path) => {
-    navigate(path);
+  // תיקון: עדכון פונקציית ניווט לסגירת התפריט לאחר לחיצה
+  const handleNavigate = (path, state) => {
+    navigate(path, state ? { state } : undefined);
     handleCloseDrawer(); // סגירת התפריט בלחיצה על פריט
   };
   
