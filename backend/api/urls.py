@@ -11,7 +11,12 @@ from .views import (
     ReferralDocumentViewSet,
     AuditLogViewSet,
     SystemSettingViewSet,
-    DashboardStatsView
+    DashboardStatsView,
+    TeamReferralsView,
+    StatusReferralsView,
+    UrgentReferralsView,
+    UpcomingAppointmentsView,
+    LongWaitingReferralsView
 )
 
 # הגדרת נתבים עבור מודלי API
@@ -30,6 +35,13 @@ urlpatterns = [
     
     # נתיבי לוח מחוונים
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+    
+    # נתיבים חדשים לניתוח נתונים
+    path('referrals/by-team/', TeamReferralsView.as_view(), name='referrals-by-team'),
+    path('referrals/by-status/', StatusReferralsView.as_view(), name='referrals-by-status'),
+    path('referrals/urgent/', UrgentReferralsView.as_view(), name='urgent-referrals'),
+    path('referrals/upcoming-appointments/', UpcomingAppointmentsView.as_view(), name='upcoming-appointments'),
+    path('referrals/long-waiting/', LongWaitingReferralsView.as_view(), name='long-waiting-referrals'),
     
     # כל שאר נתיבי ה-API שהוגדרו ב-Router
     path('', include(router.urls)),

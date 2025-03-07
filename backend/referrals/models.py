@@ -8,22 +8,27 @@ class Referral(models.Model):
     מודל המייצג הפניה רפואית
     """
     PRIORITY_CHOICES = [
-        ('low', 'נמוכה'),
-        ('medium', 'בינונית'),
-        ('high', 'גבוהה'),
-        ('urgent', 'דחופה'),
-        ('immediate', 'מיידית'),
-        ('routine', 'שגרתית'),
-        ('elective', 'אלקטיבית'),
+        ('highest', 'דחוף ביותר'),
+        ('urgent', 'דחוף'),
+        ('high', 'גבוה'),
+        ('medium', 'בינוני'),
+        ('low', 'נמוך'),
+        ('minimal', 'זניח'),
+        ('routine', 'שגרתי'),
+        ('elective', 'אלקטיבי'),
         ('emergency', 'חירום'),
     ]
     
     STATUS_CHOICES = [
         ('appointment_scheduled', 'נקבע תור'),
         ('requires_coordination', 'דרוש תיאום'),
+        ('requires_soldier_coordination', 'דרוש תיאום עם חייל'),
+        ('waiting_for_medical_date', 'ממתין לתאריך מגורם רפואי'),
         ('completed', 'בוצע הושלם'),
+        ('cancelled', 'בוטל'),
         ('waiting_for_budget_approval', 'ממתין לאישור תקציבי'),
         ('waiting_for_doctor_referral', 'ממתין להפניה מרופא'),
+        ('no_show', 'לא הגיע לתור'),
     ]
     
     REFERRAL_TYPES = [
@@ -31,6 +36,10 @@ class Referral(models.Model):
         ('imaging', 'בדיקות דימות'),
         ('lab', 'בדיקות מעבדה'),
         ('procedure', 'פרוצדורה'),
+        ('therapy', 'טיפול'),
+        ('surgery', 'ניתוח'),
+        ('consultation', 'ייעוץ'),
+        ('dental', 'טיפול שיניים'),
         ('other', 'אחר'),
     ]
 
@@ -57,6 +66,7 @@ class Referral(models.Model):
     notes = models.TextField(blank=True, verbose_name='הערות')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_referrals', verbose_name='נוצר על ידי')
     last_updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='updated_referrals', verbose_name='עודכן לאחרונה על ידי')
+    reference_date = models.DateField(null=True, blank=True, verbose_name='תאריך אסמכתא')
 
     class Meta:
         verbose_name = 'הפניה רפואית'
@@ -69,10 +79,35 @@ class Referral(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['priority']),
             models.Index(fields=['appointment_date']),
+            models.Index(fields=['reference_date']),
+            models.Index(fields=['created_at']),
         ]
 
     def __str__(self):
         return f"{self.full_name} - {self.referral_details} ({self.status})"
+
+    @property
+    def is_urgent(self):
+        """האם ההפניה דחופה"""
+        return self.priority in ['highest', 'urgent', 'high']
+    
+    @property
+    def is_pending(self):
+        """האם ההפניה ממתינה לטיפול"""
+        return self.status not in ['completed', 'cancelled', 'no_show']
+    
+    @property
+    def waiting_days(self):
+        """מספר ימים שההפניה ממתינה במערכת"""
+        from django.utils import timezone
+        import datetime
+        
+        if not self.is_pending:
+            return 0
+            
+        now = timezone.now().date()
+        delta = now - self.created_at.date()
+        return delta.days
 
 
 class ReferralDocument(models.Model):

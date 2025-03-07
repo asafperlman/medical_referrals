@@ -23,9 +23,14 @@ import {
   useTheme,
   useMediaQuery,
   Tooltip,
+  Badge,
+  Chip,
+  Paper,
+  alpha,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
+  Close as CloseIcon,
   Dashboard as DashboardIcon,
   EventNote as EventNoteIcon,
   People as PeopleIcon,
@@ -35,11 +40,17 @@ import {
   LightMode as LightModeIcon,
   Person as PersonIcon,
   Logout as LogoutIcon,
+  Add as AddIcon,
+  Notifications as NotificationsIcon,
+  CalendarToday as CalendarTodayIcon,
+  LocalHospital as LocalHospitalIcon,
+  MedicalServices as MedicalServicesIcon,
+  KeyboardArrowRight as KeyboardArrowRightIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { ColorModeContext } from '../App';
 
-const drawerWidth = 240;
+const drawerWidth = 260;
 
 const Layout = () => {
   const { user, logout } = useAuth();
@@ -52,8 +63,15 @@ const Layout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   
+  // סגירת תפריט בלחיצה על כל פריט - תיקון הבאג
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+  
+  const handleCloseDrawer = () => {
+    if (isMobile) {
+      setMobileOpen(false);
+    }
   };
   
   const handleProfileMenuOpen = (event) => {
@@ -66,9 +84,7 @@ const Layout = () => {
   
   const handleNavigate = (path) => {
     navigate(path);
-    if (isMobile) {
-      setMobileOpen(false);
-    }
+    handleCloseDrawer(); // סגירת התפריט בלחיצה על פריט
   };
   
   const handleLogout = () => {
@@ -77,41 +93,160 @@ const Layout = () => {
   };
   
   const navItems = [
-    { text: 'לוח בקרה', path: '/', icon: <DashboardIcon /> },
-    { text: 'הפניות רפואיות', path: '/referrals', icon: <EventNoteIcon /> },
+    { text: 'לוח בקרה', path: '/', icon: <DashboardIcon />, notification: null },
+    { text: 'הפניות רפואיות', path: '/referrals', icon: <MedicalServicesIcon />, notification: null },
+    { text: 'הוספת הפניה', path: '/referrals/new', icon: <AddIcon />, notification: null },
+    { text: 'תורים להיום', path: '/appointments', icon: <CalendarTodayIcon />, notification: 3 },
   ];
   
   // פריטי ניווט למנהלים בלבד
   const adminNavItems = [
-    { text: 'ניהול משתמשים', path: '/users', icon: <PeopleIcon /> },
-    { text: 'תיעוד פעולות', path: '/audit-logs', icon: <HistoryIcon /> },
+    { text: 'ניהול משתמשים', path: '/users', icon: <PeopleIcon />, notification: null },
+    { text: 'תיעוד פעולות', path: '/audit-logs', icon: <HistoryIcon />, notification: null },
   ];
   
   // פריטי ניווט למנהלי מערכת בלבד
   const superAdminNavItems = [
-    { text: 'הגדרות מערכת', path: '/settings', icon: <SettingsIcon /> },
+    { text: 'הגדרות מערכת', path: '/settings', icon: <SettingsIcon />, notification: null },
   ];
   
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'admin' || user?.role === 'manager';
   
+  // שיפור העיצוב של התפריט
   const drawer = (
     <div>
-      <Toolbar sx={{ justifyContent: 'center' }}>
-        <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+      {/* כותרת התפריט עם כפתור סגירה במובייל */}
+      <Toolbar 
+        sx={{ 
+          justifyContent: 'space-between',
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          py: 1.5,
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.primary.main, 0.15)
+            : alpha(theme.palette.primary.main, 0.05)
+        }}
+      >
+        <Typography variant="h6" component="div" sx={{ 
+          fontWeight: 'bold',
+          color: theme.palette.primary.main,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1
+        }}>
+          <LocalHospitalIcon color="primary" />
           מערכת הפניות רפואיות
         </Typography>
+        
+        {isMobile && (
+          <IconButton 
+            edge="end" 
+            color="inherit" 
+            onClick={handleCloseDrawer}
+            aria-label="סגור תפריט"
+          >
+            <CloseIcon />
+          </IconButton>
+        )}
       </Toolbar>
-      <Divider />
-      <List>
+      
+      {/* פרטי המשתמש */}
+      <Box
+        sx={{
+          p: 2,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.background.paper, 0.3)
+            : alpha(theme.palette.background.paper, 0.5),
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        <Avatar
+          src={user?.profile_image}
+          alt={user?.full_name}
+          sx={{ 
+            width: 64, 
+            height: 64,
+            mb: 1,
+            border: `2px solid ${theme.palette.primary.main}`,
+          }}
+        >
+          {user?.full_name?.charAt(0) || 'U'}
+        </Avatar>
+        <Typography variant="subtitle1" fontWeight={600}>
+          {user?.full_name}
+        </Typography>
+        <Chip 
+          label={user?.role === 'admin' ? 'מנהל מערכת' : user?.role === 'manager' ? 'מנהל' : 'משתמש'} 
+          size="small"
+          color={user?.role === 'admin' ? 'primary' : user?.role === 'manager' ? 'secondary' : 'default'}
+          sx={{ mt: 0.5 }}
+        />
+      </Box>
+      
+      {/* תפריט ניווט ראשי */}
+      <List sx={{ pt: 1 }}>
         {navItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               selected={location.pathname === item.path}
               onClick={() => handleNavigate(item.path)}
+              sx={{
+                borderRadius: '0 20px 20px 0',
+                ml: 1,
+                transition: 'all 0.2s',
+                position: 'relative',
+                '&.Mui-selected': {
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? alpha(theme.palette.primary.main, 0.2)
+                    : alpha(theme.palette.primary.main, 0.1),
+                  borderRight: `4px solid ${theme.palette.primary.main}`,
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark' 
+                      ? alpha(theme.palette.primary.main, 0.3)
+                      : alpha(theme.palette.primary.main, 0.2),
+                  }
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? alpha(theme.palette.primary.main, 0.1)
+                    : alpha(theme.palette.background.paper, 0.8),
+                }
+              }}
             >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
+              <ListItemIcon 
+                sx={{ 
+                  minWidth: 40,
+                  color: location.pathname === item.path ? theme.palette.primary.main : 'inherit' 
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText 
+                primary={
+                  <Typography 
+                    variant="body2" 
+                    fontWeight={location.pathname === item.path ? 600 : 400}
+                  >
+                    {item.text}
+                  </Typography>
+                } 
+              />
+              {location.pathname === item.path && (
+                <KeyboardArrowRightIcon 
+                  fontSize="small" 
+                  sx={{ color: theme.palette.primary.main }}
+                />
+              )}
+              {item.notification && (
+                <Badge 
+                  badgeContent={item.notification} 
+                  color="error" 
+                  sx={{ mr: 1 }}
+                />
+              )}
             </ListItemButton>
           </ListItem>
         ))}
@@ -119,16 +254,57 @@ const Layout = () => {
       
       {isManager && (
         <>
-          <Divider />
+          <Divider sx={{ my: 2, mx: 2 }} />
+          <Typography variant="overline" sx={{ px: 3, color: theme.palette.text.secondary }}>
+            הגדרות ניהול
+          </Typography>
           <List>
             {adminNavItems.map((item) => (
               <ListItem key={item.text} disablePadding>
                 <ListItemButton
                   selected={location.pathname === item.path}
                   onClick={() => handleNavigate(item.path)}
+                  sx={{
+                    borderRadius: '0 20px 20px 0',
+                    ml: 1,
+                    transition: 'all 0.2s',
+                    '&.Mui-selected': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? alpha(theme.palette.secondary.main, 0.2)
+                        : alpha(theme.palette.secondary.main, 0.1),
+                      borderRight: `4px solid ${theme.palette.secondary.main}`,
+                      '&:hover': {
+                        backgroundColor: theme.palette.mode === 'dark' 
+                          ? alpha(theme.palette.secondary.main, 0.3)
+                          : alpha(theme.palette.secondary.main, 0.2),
+                      }
+                    }
+                  }}
                 >
-                  <ListItemIcon>{item.icon}</ListItemIcon>
-                  <ListItemText primary={item.text} />
+                  <ListItemIcon 
+                    sx={{ 
+                      minWidth: 40,
+                      color: location.pathname === item.path ? theme.palette.secondary.main : 'inherit' 
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={
+                      <Typography 
+                        variant="body2" 
+                        fontWeight={location.pathname === item.path ? 600 : 400}
+                      >
+                        {item.text}
+                      </Typography>
+                    }
+                  />
+                  {location.pathname === item.path && (
+                    <KeyboardArrowRightIcon 
+                      fontSize="small" 
+                      sx={{ color: theme.palette.secondary.main }}
+                    />
+                  )}
                 </ListItemButton>
               </ListItem>
             ))}
@@ -138,115 +314,234 @@ const Layout = () => {
       
       {isAdmin && (
         <>
-          <Divider />
+          <Divider sx={{ my: 2, mx: 2 }} />
+          <Typography variant="overline" sx={{ px: 3, color: theme.palette.text.secondary }}>
+            ניהול מערכת
+          </Typography>
           <List>
             {superAdminNavItems.map((item) => (
               <ListItem key={item.text} disablePadding>
                 <ListItemButton
                   selected={location.pathname === item.path}
                   onClick={() => handleNavigate(item.path)}
+                  sx={{
+                    borderRadius: '0 20px 20px 0',
+                    ml: 1,
+                    transition: 'all 0.2s',
+                    '&.Mui-selected': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? alpha(theme.palette.warning.main, 0.2)
+                        : alpha(theme.palette.warning.main, 0.1),
+                      borderRight: `4px solid ${theme.palette.warning.main}`,
+                      '&:hover': {
+                        backgroundColor: theme.palette.mode === 'dark' 
+                          ? alpha(theme.palette.warning.main, 0.3)
+                          : alpha(theme.palette.warning.main, 0.2),
+                      }
+                    }
+                  }}
                 >
-                  <ListItemIcon>{item.icon}</ListItemIcon>
-                  <ListItemText primary={item.text} />
+                  <ListItemIcon 
+                    sx={{ 
+                      minWidth: 40,
+                      color: location.pathname === item.path ? theme.palette.warning.main : 'inherit' 
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={
+                      <Typography 
+                        variant="body2" 
+                        fontWeight={location.pathname === item.path ? 600 : 400}
+                      >
+                        {item.text}
+                      </Typography>
+                    }
+                  />
+                  {location.pathname === item.path && (
+                    <KeyboardArrowRightIcon 
+                      fontSize="small" 
+                      sx={{ color: theme.palette.warning.main }}
+                    />
+                  )}
                 </ListItemButton>
               </ListItem>
             ))}
           </List>
         </>
       )}
+      
+      {/* כפתור התנתקות בתחתית התפריט */}
+      <Box sx={{ position: 'absolute', bottom: 0, width: '100%', p: 2 }}>
+        <Button
+          fullWidth
+          variant="outlined"
+          color="error"
+          onClick={handleLogout}
+          startIcon={<LogoutIcon />}
+          sx={{ justifyContent: 'flex-start', py: 1 }}
+        >
+          התנתקות
+        </Button>
+      </Box>
     </div>
   );
 
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
+      {/* שיפור העיצוב של ה-AppBar */}
       <AppBar
         position="fixed"
+        elevation={1}
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          mr: { md: `${drawerWidth}px` },
+          mr: { md: `${drawerWidth}px` }, // התפריט מימין
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? theme.palette.background.default 
+            : theme.palette.background.paper,
+          color: theme.palette.text.primary,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          backdropFilter: 'blur(20px)',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ display: { md: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {location.pathname === '/' && 'לוח בקרה'}
-            {location.pathname === '/referrals' && 'הפניות רפואיות'}
-            {location.pathname.startsWith('/referrals/') && 'פרטי הפניה'}
-            {location.pathname === '/users' && 'ניהול משתמשים'}
-            {location.pathname === '/audit-logs' && 'תיעוד פעולות'}
-            {location.pathname === '/settings' && 'הגדרות מערכת'}
-            {location.pathname === '/profile' && 'פרופיל משתמש'}
-          </Typography>
-          
-          <Tooltip title={theme.palette.mode === 'dark' ? 'מצב יום' : 'מצב לילה'}>
-            <IconButton onClick={colorMode.toggleColorMode} color="inherit">
-              {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            </IconButton>
-          </Tooltip>
-          
+        <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button
-              onClick={handleProfileMenuOpen}
+            <IconButton
               color="inherit"
-              startIcon={
-                <Avatar
-                  alt={user?.full_name}
-                  src={user?.profile_image}
-                  sx={{ width: 32, height: 32 }}
-                >
-                  {user?.full_name?.charAt(0) || 'U'}
-                </Avatar>
-              }
-              sx={{ textTransform: 'none' }}
+              aria-label="פתח תפריט"
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ display: { md: 'none' }, ml: 1 }}
             >
-              {!isMobile && user?.full_name}
-            </Button>
+              <MenuIcon />
+            </IconButton>
             
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleProfileMenuClose}
-              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-            >
-              <MenuItem onClick={() => { handleProfileMenuClose(); navigate('/profile'); }}>
-                <ListItemIcon>
-                  <PersonIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>פרופיל אישי</ListItemText>
-              </MenuItem>
-              <Divider />
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>התנתקות</ListItemText>
-              </MenuItem>
-            </Menu>
+            <Typography variant="h6" noWrap component="div" fontWeight={600} color="primary">
+              {location.pathname === '/' && 'לוח בקרה'}
+              {location.pathname === '/referrals' && 'הפניות רפואיות'}
+              {location.pathname === '/referrals/new' && 'הוספת הפניה חדשה'}
+              {location.pathname.includes('/referrals/') && location.pathname !== '/referrals/new' && 'פרטי הפניה'}
+              {location.pathname === '/appointments' && 'תורים להיום'}
+              {location.pathname === '/users' && 'ניהול משתמשים'}
+              {location.pathname === '/audit-logs' && 'תיעוד פעולות'}
+              {location.pathname === '/settings' && 'הגדרות מערכת'}
+              {location.pathname === '/profile' && 'פרופיל משתמש'}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* התראות */}
+            <Tooltip title="התראות">
+              <IconButton color="inherit" sx={{ mr: 1 }}>
+                <Badge badgeContent={3} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            
+            {/* כפתור החלפת ערכת צבעים */}
+            <Tooltip title={theme.palette.mode === 'dark' ? 'מצב יום' : 'מצב לילה'}>
+              <IconButton onClick={colorMode.toggleColorMode} color="inherit" sx={{ mr: 1 }}>
+                {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
+            
+            {/* פרופיל משתמש */}
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Button
+                onClick={handleProfileMenuOpen}
+                color="inherit"
+                sx={{ 
+                  textTransform: 'none',
+                  borderRadius: '20px',
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark' 
+                      ? alpha(theme.palette.primary.main, 0.1)
+                      : alpha(theme.palette.primary.main, 0.05),
+                  }
+                }}
+                startIcon={
+                  <Avatar
+                    alt={user?.full_name}
+                    src={user?.profile_image}
+                    sx={{ width: 32, height: 32 }}
+                  >
+                    {user?.full_name?.charAt(0) || 'U'}
+                  </Avatar>
+                }
+              >
+                {!isMobile && (
+                  <Box sx={{ textAlign: 'right', ml: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{user?.full_name}</Typography>
+                    <Typography variant="caption" color="text.secondary">{user?.role === 'admin' ? 'מנהל מערכת' : user?.role === 'manager' ? 'מנהל' : 'משתמש'}</Typography>
+                  </Box>
+                )}
+              </Button>
+              
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleProfileMenuClose}
+                transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                sx={{ mt: 1 }}
+                PaperProps={{
+                  elevation: 2,
+                  sx: { borderRadius: 2, minWidth: 180 }
+                }}
+              >
+                <Box sx={{ px: 2, py: 1 }}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    מחובר כ
+                  </Typography>
+                  <Typography variant="body1" fontWeight={600}>
+                    {user?.full_name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user?.email}
+                  </Typography>
+                </Box>
+                <Divider sx={{ my: 1 }} />
+                <MenuItem onClick={() => { handleProfileMenuClose(); navigate('/profile'); }}>
+                  <ListItemIcon>
+                    <PersonIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>פרופיל אישי</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={() => { handleProfileMenuClose(); navigate('/settings'); }}>
+                  <ListItemIcon>
+                    <SettingsIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>הגדרות</ListItemText>
+                </MenuItem>
+                <Divider sx={{ my: 1 }} />
+                <MenuItem onClick={handleLogout}>
+                  <ListItemIcon>
+                    <LogoutIcon fontSize="small" color="error" />
+                  </ListItemIcon>
+                  <ListItemText primaryTypographyProps={{ color: 'error' }}>התנתקות</ListItemText>
+                </MenuItem>
+              </Menu>
+            </Box>
           </Box>
         </Toolbar>
       </AppBar>
       
+      {/* תפריט צידי - מיקום מימין */}
       <Box
         component="nav"
         sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
         aria-label="תפריט ניווט"
       >
+        {/* תפריט למובייל */}
         <Drawer
           variant="temporary"
-          anchor={theme.direction === 'rtl' ? 'right' : 'left'}
+          anchor="right" // קביעת התפריט לצד ימין
           open={mobileOpen}
-          onClose={handleDrawerToggle}
+          onClose={handleCloseDrawer}
           ModalProps={{
             keepMounted: true, // טוב יותר לביצועים בנייד
           }}
@@ -260,14 +555,23 @@ const Layout = () => {
         >
           {drawer}
         </Drawer>
+        
+        {/* תפריט למסך רחב */}
         <Drawer
           variant="permanent"
-          anchor={theme.direction === 'rtl' ? 'right' : 'left'}
+          anchor="right" // קביעת התפריט לצד ימין
           sx={{
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
+              borderLeft: 'none',
+              backgroundImage: theme.palette.mode === 'dark' 
+                ? 'linear-gradient(to bottom, rgba(10, 10, 10, 0.8), rgba(0, 0, 0, 0.9))'
+                : 'linear-gradient(to bottom, rgba(250, 250, 253, 0.8), rgba(244, 245, 250, 0.9))',
+              boxShadow: theme.palette.mode === 'dark' 
+                ? '-1px 0 10px rgba(0, 0, 0, 0.2)'
+                : '-1px 0 10px rgba(0, 0, 0, 0.05)',
             },
           }}
           open
@@ -276,18 +580,37 @@ const Layout = () => {
         </Drawer>
       </Box>
       
+      {/* תוכן ראשי */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          px: { xs: 2, sm: 3, md: 4 },
+          py: { xs: 2, sm: 3 },
           width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
           minHeight: '100vh',
-          backgroundColor: theme.palette.background.default,
+          transition: 'all 0.3s',
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.background.default, 0.9)
+            : alpha(theme.palette.background.default, 0.8),
         }}
       >
         <Toolbar />
-        <Outlet />
+        {/* אזור התוכן הראשי */}
+        <Paper 
+          elevation={0} 
+          sx={{ 
+            p: { xs: 2, sm: 3 }, 
+            borderRadius: 2,
+            backgroundColor: theme.palette.mode === 'dark' 
+              ? alpha(theme.palette.background.paper, 0.5)
+              : alpha(theme.palette.background.paper, 0.7),
+            backdropFilter: 'blur(10px)',
+            minHeight: 'calc(100vh - 110px)', // גובה מינימלי לתוכן
+          }}
+        >
+          <Outlet />
+        </Paper>
       </Box>
     </Box>
   );
