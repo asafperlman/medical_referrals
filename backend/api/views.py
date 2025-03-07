@@ -9,6 +9,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
 from django.utils import timezone
 import datetime
+from django.db.models import Count
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from .serializers import (
     UserSerializer, UserCreateSerializer, ChangePasswordSerializer,
@@ -219,6 +222,9 @@ class DashboardStatsView(generics.GenericAPIView):
     """
     serializer_class = DashboardStatsSerializer
     permission_classes = [IsAuthenticated]
+    serializer_class = DashboardStatsSerializer
+    permission_classes = [IsAuthenticated]
+
     
     def get(self, request, *args, **kwargs):
         """

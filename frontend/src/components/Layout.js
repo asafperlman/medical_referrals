@@ -32,7 +32,6 @@ import {
   Menu as MenuIcon,
   Close as CloseIcon,
   Dashboard as DashboardIcon,
-  EventNote as EventNoteIcon,
   People as PeopleIcon,
   Settings as SettingsIcon,
   History as HistoryIcon,

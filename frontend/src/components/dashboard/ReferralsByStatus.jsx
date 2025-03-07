@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { CheckCircle, Loader, AlertTriangle, Clock, Users } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config';

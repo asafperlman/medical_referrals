@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Users, Loader, AlertTriangle, Bookmark, Clock } from 'lucide-react';
+import { Users, Loader, AlertTriangle, Clock } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config';
 import ReferralsTable from '../shared/ReferralsTable';

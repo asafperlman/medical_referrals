@@ -6,7 +6,9 @@ from accounts.models import User
 from audit.models import AuditLog, SystemSetting
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.contenttypes.models import ContentType
-
+from django.db.models import Count
+from rest_framework.permissions import IsAuthenticated 
+from rest_framework.response import Response
 
 class UserSerializer(serializers.ModelSerializer):
     """
@@ -281,9 +283,6 @@ class DashboardStatsSerializer(serializers.Serializer):
     """
     API לקבלת סטטיסטיקות מפורטות עבור לוח המחוונים
     """
-    serializer_class = DashboardStatsSerializer
-    permission_classes = [IsAuthenticated]
-    
     def get(self, request, *args, **kwargs):
         """
         קבל נתונים סטטיסטיים מפורטים עבור לוח המחוונים
