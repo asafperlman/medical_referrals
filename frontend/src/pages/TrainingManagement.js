@@ -51,14 +51,12 @@ import {
   Event as EventIcon,
   Check as CheckIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 
 // רכיב עמוד ניהול תרגילים ואימונים
 const TrainingManagement = () => {
   // אין שימוש ב-useAuth – הוסר הייבוא
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleTabChange = (event, newValue) => {

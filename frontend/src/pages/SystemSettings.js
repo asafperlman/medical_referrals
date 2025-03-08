@@ -1,6 +1,4 @@
-// medical-referrals/frontend/src/pages/SystemSettings.js
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -35,7 +33,7 @@ import { useAuth } from '../context/AuthContext';
 const SystemSettings = () => {
   const { api } = useAuth();
   const theme = useTheme();
-  
+
   // מצבים
   const [settings, setSettings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,19 +41,18 @@ const SystemSettings = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState(null);
-  
+
   // מצב טופס
   const [formData, setFormData] = useState({
     key: '',
     value: '',
     description: '',
   });
-  
-  // טעינת הגדרות מערכת
-  const fetchSettings = async () => {
+
+  // הגדרת fetchSettings עם useCallback
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
     try {
       const response = await api.get('/settings/');
       setSettings(response.data.results);
@@ -65,12 +62,13 @@ const SystemSettings = () => {
       setError('אירעה שגיאה בטעינת הגדרות המערכת');
       setLoading(false);
     }
-  };
-  
+  }, [api]);
+
+  // כעת useEffect יפעל נכון
   useEffect(() => {
     fetchSettings();
-  }, []);
-  
+  }, [fetchSettings]);
+
   // טיפול בהוספת הגדרה
   const handleAddSetting = () => {
     setSelectedSetting(null);
@@ -81,7 +79,7 @@ const SystemSettings = () => {
     });
     setEditDialogOpen(true);
   };
-  
+
   // טיפול בעריכת הגדרה
   const handleEditSetting = (setting) => {
     setSelectedSetting(setting);
@@ -92,13 +90,13 @@ const SystemSettings = () => {
     });
     setEditDialogOpen(true);
   };
-  
+
   // טיפול במחיקת הגדרה
   const handleDeleteClick = (setting) => {
     setSelectedSetting(setting);
     setDeleteDialogOpen(true);
   };
-  
+
   // שינוי ערכי הטופס
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -107,7 +105,7 @@ const SystemSettings = () => {
       [name]: value,
     }));
   };
-  
+
   // שמירת הגדרה
   const handleSaveSetting = async () => {
     try {
@@ -145,7 +143,7 @@ const SystemSettings = () => {
       setLoading(false);
     }
   };
-  
+
   // מחיקת הגדרה
   const handleConfirmDelete = async () => {
     try {
@@ -160,14 +158,14 @@ const SystemSettings = () => {
       setDeleteDialogOpen(false);
     }
   };
-  
+
   // חילוץ סוג הערך להצגה
   const getValueType = (value) => {
     if (value === null) return 'null';
     if (Array.isArray(value)) return 'array';
     return typeof value;
   };
-  
+
   // פונקציה להצגת ערך מותאמת לפי סוג
   const renderValue = (value) => {
     const valueType = getValueType(value);
@@ -183,10 +181,10 @@ const SystemSettings = () => {
         return String(value);
     }
   };
-  
+
   // מיון הגדרות לפי מפתח
   const sortedSettings = [...settings].sort((a, b) => a.key.localeCompare(b.key));
-  
+
   if (loading && settings.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
@@ -194,7 +192,7 @@ const SystemSettings = () => {
       </Box>
     );
   }
-  
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>

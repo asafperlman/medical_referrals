@@ -1,14 +1,10 @@
-// medical-referrals/frontend/src/App.js
-
-import React from 'react';
+import React, { createContext, useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
-import { createContext, useState, useEffect, useMemo } from 'react';
-import { rtlCache } from './utils/rtlCache';
 import { CacheProvider } from '@emotion/react';
+import { rtlCache } from './utils/rtlCache';
 import DoctorVisits from './pages/DoctorVisits';
 import TrainingManagement from './pages/TrainingManagement';
-// משתמש והרשאות
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 // דפים
@@ -26,12 +22,13 @@ import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import LoadingScreen from './components/LoadingScreen';
 
-// צבעים וערכת נושא
+// הקשר לצבעי התמה (Color Mode)
 export const ColorModeContext = createContext({ toggleColorMode: () => {} });
 
 function App() {
   const [mode, setMode] = useState('light');
-  
+
+  // פונקציה להחלפת מצב התצוגה (light/dark)
   const colorMode = useMemo(
     () => ({
       toggleColorMode: () => {
@@ -45,6 +42,7 @@ function App() {
     [],
   );
 
+  // טעינת מצב התצוגה שנשמר ב-localStorage
   useEffect(() => {
     const savedMode = localStorage.getItem('theme-mode');
     if (savedMode) {
@@ -52,6 +50,7 @@ function App() {
     }
   }, []);
 
+  // יצירת התמה עם הגדרות צבעים מלאות – כולל צבעי ברירת מחדל והגדרות נוספות לרכיבי Chip
   const theme = useMemo(
     () =>
       createTheme({
@@ -94,22 +93,59 @@ function App() {
             dark: '#388e3c',
             contrastText: '#ffffff',
           },
-          // הוסף גם עבור default כדי לפתור את הבעיה
+          // הגדרות צבע עבור ערך ברירת מחדל – חשוב לרכיבים שמשתמשים בצבעים דינמיים
           default: {
             main: '#e0e0e0',
+            light: '#f5f5f5',
+            dark: '#9e9e9e',
             contrastText: '#000000',
           },
-          // ודא שכל הצבעים שמשתמשים בהם ב-Chip יש להם contrastText
+          // צבעים נוספים לשימוש ב-Chip (למשל, עבור עדיפויות או סטטוסים)
+          highest: {
+            main: '#d32f2f',
+            light: '#ef5350',
+            dark: '#b71c1c',
+            contrastText: '#ffffff',
+          },
+          urgent: {
+            main: '#ff1744',
+            light: '#ff5252',
+            dark: '#d50000',
+            contrastText: '#ffffff',
+          },
+          high: {
+            main: '#ff9100',
+            light: '#ffab40',
+            dark: '#ff6d00',
+            contrastText: '#000000',
+          },
+          medium: {
+            main: '#2196f3',
+            light: '#64b5f6',
+            dark: '#1976d2',
+            contrastText: '#ffffff',
+          },
+          low: {
+            main: '#4caf50',
+            light: '#81c784',
+            dark: '#388e3c',
+            contrastText: '#ffffff',
+          },
+          minimal: {
+            main: '#bdbdbd',
+            light: '#e0e0e0',
+            dark: '#9e9e9e',
+            contrastText: '#000000',
+          },
           background: {
             default: mode === 'light' ? '#f5f5f5' : '#121212',
             paper: mode === 'light' ? '#ffffff' : '#1e1e1e',
           },
         },
-        // שאר ההגדרות כמו קודם
+        // ניתן להוסיף כאן הגדרות נוספות לתמה בעתיד
       }),
     [mode],
   );
-  
 
   return (
     <CacheProvider value={rtlCache}>
@@ -125,13 +161,12 @@ function App() {
       </ColorModeContext.Provider>
     </CacheProvider>
   );
-
 }
 
-// מרכיב הניתובים המוגנים בהרשאות
+// מרכיב הנתיבים, כולל נתיבים ציבוריים ומוגנים
 function AppRoutes() {
   const { isAuthenticated, isLoading, user } = useAuth();
-  
+
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -140,7 +175,6 @@ function AppRoutes() {
     <Routes>
       {/* נתיבים ציבוריים */}
       <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
-      
       {/* נתיבים מוגנים */}
       <Route path="/" element={isAuthenticated ? <Layout /> : <Navigate to="/login" />}>
         <Route index element={<Dashboard />} />
@@ -149,24 +183,20 @@ function AppRoutes() {
         <Route path="trainings" element={<TrainingManagement />} />
         <Route path="referrals/:id" element={<ReferralDetail />} />
         <Route path="profile" element={<Profile />} />
-        
+
         {/* נתיבים למנהלים בלבד */}
-        <Route 
-          path="users" 
-          element={user?.role === 'admin' || user?.role === 'manager' ? <UserManagement /> : <Navigate to="/" />} 
+        <Route
+          path="users"
+          element={user?.role === 'admin' || user?.role === 'manager' ? <UserManagement /> : <Navigate to="/" />}
         />
-        <Route 
-          path="audit-logs" 
-          element={user?.role === 'admin' || user?.role === 'manager' ? <AuditLogs /> : <Navigate to="/" />} 
+        <Route
+          path="audit-logs"
+          element={user?.role === 'admin' || user?.role === 'manager' ? <AuditLogs /> : <Navigate to="/" />}
         />
-        
+
         {/* נתיבים למנהלי מערכת בלבד */}
-        <Route 
-          path="settings" 
-          element={user?.role === 'admin' ? <SystemSettings /> : <Navigate to="/" />} 
-        />
+        <Route path="settings" element={user?.role === 'admin' ? <SystemSettings /> : <Navigate to="/" />} />
       </Route>
-      
       {/* נתיב 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
