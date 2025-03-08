@@ -1,959 +1,1072 @@
-// frontend/src/components/TaskManager.js
-
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  IconButton,
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Grid, 
+  Paper, 
+  Typography, 
+  Box, 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  Divider,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  ListItemSecondaryAction,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Tooltip,
+  useTheme,
+  Chip,
+  Button,
+  Tabs,
+  Tab,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Checkbox,
-  Chip,
-  Tooltip,
-  Divider,
-  Grid,
-  Alert,
-  CircularProgress,
-  Collapse,
-  Fab,
-  FormControlLabel,
-  Badge,
+  TableContainer,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody
 } from '@mui/material';
-import {
-  Add as AddIcon,
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Check as CheckIcon,
-  RadioButtonUnchecked as UncheckedIcon,
+import { 
   Assignment as AssignmentIcon,
-  EventAvailable as EventAvailableIcon,
-  PersonOutline as PersonOutlineIcon,
-  LocalHospital as LocalHospitalIcon,
-  Healing as HealingIcon,
-  FilterList as FilterListIcon,
+  Warning as WarningIcon,
   AccessTime as AccessTimeIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
+  Event as EventIcon,
   Refresh as RefreshIcon,
-  KeyboardArrowDown as KeyboardArrowDownIcon,
-  KeyboardArrowUp as KeyboardArrowUpIcon,
-  Flag as FlagIcon,
-  FormatListBulleted as FormatListBulletedIcon,
+  CalendarToday as CalendarTodayIcon,
+  MedicalServices as MedicalServicesIcon,
+  People as PeopleIcon,
+  ArrowForward as ArrowForwardIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { 
+  Chart as ChartJS, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  Title, 
+  Tooltip as ChartTooltip, 
+  Legend, 
+  ArcElement, 
+  PointElement, 
+  LineElement
+} from 'chart.js';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
 
-// Task manager component for use anywhere in the application
-const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false }) => {
-  // State
-  const [tasks, setTasks] = useState([]);
-  const [filteredTasks, setFilteredTasks] = useState([]);
-  const [loading, setLoading] = useState(false);
+// Import the TaskManager component
+import TaskManager from '../components/TaskManager';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  Title, 
+  ChartTooltip, 
+  Legend, 
+  ArcElement, 
+  PointElement, 
+  LineElement
+);
+
+const Dashboard = () => {
+  const { api } = useAuth();
+  const theme = useTheme();
+  const navigate = useNavigate();
+  
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [openForm, setOpenForm] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterPriority, setFilterPriority] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [stats, setStats] = useState(null);
+  const [urgentReferrals, setUrgentReferrals] = useState([]);
+  const [todayAppointments, setTodayAppointments] = useState([]);
+  const [weekAppointments, setWeekAppointments] = useState([]);
+  const [pendingReferrals, setPendingReferrals] = useState([]);
+  const [activeTab, setActiveTab] = useState(0);
+  const [filterTeam, setFilterTeam] = useState('all');
   
-  // Form state
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: 'general',
-    priority: 'medium',
-    due_date: '',
-    completed: false,
-    related_soldier: '',
-  });
+  // Compute filtered urgent referrals based on team filter
+  const filteredUrgentReferrals = useMemo(() => {
+    if (filterTeam === 'all') return urgentReferrals;
+    return urgentReferrals.filter(ref => ref.team === filterTeam);
+  }, [urgentReferrals, filterTeam]);
   
-  // Edit state
-  const [editingTask, setEditingTask] = useState(null);
-  
-  // Delete state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [taskIdToDelete, setTaskIdToDelete] = useState(null);
-  
-  // Load tasks
-  useEffect(() => {
-    const fetchTasks = async () => {
-      setLoading(true);
-      setError(null);
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Fetch general statistics
+      const statsResponse = await api.get('/dashboard/stats/');
+      setStats(statsResponse.data);
       
-      try {
-        // In a real project we would make an API call to the server
-        // const response = await api.get('/tasks/');
-        // setTasks(response.data);
-        
-        // Using sample data
-        const mockTasks = [
-          {
-            id: 1,
-            title: 'מדידת לחץ דם לאלון כהן',
-            description: 'בדיקת לחץ דם שבועית',
-            category: 'medical',
-            priority: 'high',
-            due_date: '2025-03-15',
-            completed: false,
-            created_at: '2025-03-07',
-            related_soldier: 'אלון כהן'
-          },
-          {
-            id: 2,
-            title: 'תיאום תור פיזיותרפיה',
-            description: 'לתאם תור פיזיותרפיה עבור דני לוי',
-            category: 'referral',
-            priority: 'medium',
-            due_date: '2025-03-12',
-            completed: false,
-            created_at: '2025-03-06',
-            related_soldier: 'דני לוי'
-          },
-          {
-            id: 3,
-            title: 'לוודא שחיילי אתק ביצעו תרגול חסם עורקים',
-            description: 'לבדוק מול המפקד אילו חיילים לא ביצעו',
-            category: 'training',
-            priority: 'high',
-            due_date: '2025-03-10',
-            completed: false,
-            created_at: '2025-03-05',
-            related_soldier: ''
-          },
-          {
-            id: 4,
-            title: 'בדיקת מלאי ערכות עזרה ראשונה',
-            description: 'לבדוק את כל הערכות ולדווח על ציוד חסר',
-            category: 'general',
-            priority: 'low',
-            due_date: '2025-03-20',
-            completed: true,
-            created_at: '2025-03-04',
-            related_soldier: ''
-          },
-          {
-            id: 5,
-            title: 'ישיבה עם רופאת היחידה',
-            description: 'סקירת מקרים מיוחדים',
-            category: 'meeting',
-            priority: 'high',
-            due_date: '2025-03-09',
-            completed: false,
-            created_at: '2025-03-03',
-            related_soldier: ''
-          }
-        ];
-        
-        setTasks(mockTasks);
-        setFilteredTasks(mockTasks);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching tasks:', err);
-        setError('אירעה שגיאה בטעינת המשימות');
-        setLoading(false);
+      // Fetch urgent referrals
+      const urgentResponse = await api.get('/referrals/', {
+        params: {
+          priority__in: 'urgent,high',
+          status__in: 'new,in_progress,waiting_for_approval,appointment_scheduled',
+          limit: 5
+        }
+      });
+      setUrgentReferrals(urgentResponse.data.results || []);
+      
+      // Fetch today's appointments
+      const today = new Date().toISOString().split('T')[0];
+      const todayResponse = await api.get('/referrals/', {
+        params: {
+          appointment_date__gte: `${today}T00:00:00`,
+          appointment_date__lte: `${today}T23:59:59`,
+          limit: 5
+        }
+      });
+      setTodayAppointments(todayResponse.data.results || []);
+      
+      // Fetch appointments for the coming week
+      const weekLater = new Date();
+      weekLater.setDate(weekLater.getDate() + 7);
+      const weekResponse = await api.get('/referrals/', {
+        params: {
+          appointment_date__gte: new Date(today).toISOString(),
+          appointment_date__lte: weekLater.toISOString(),
+          limit: 8
+        }
+      });
+      setWeekAppointments(weekResponse.data.results || []);
+      
+      // Fetch referrals that require coordination
+      const pendingResponse = await api.get('/referrals/', {
+        params: {
+          status__in: 'requires_coordination,requires_soldier_coordination',
+          limit: 8
+        }
+      });
+      setPendingReferrals(pendingResponse.data.results || []);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      
+      if (err.response) {
+        if (err.response.status === 500) {
+          setError('אירעה שגיאה בשרת. ייתכן שיש מיגרציות שלא יושמו. נא לפנות למנהל המערכת.');
+        } else {
+          setError(`שגיאה בטעינת הנתונים: ${err.response.status}. אנא נסה שוב.`);
+        }
+      } else if (err.request) {
+        setError('לא התקבלה תגובה מהשרת. בדוק את החיבור לאינטרנט ונסה שוב.');
+      } else {
+        setError('אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.');
       }
+      
+      setLoading(false);
+    }
+  }, [api]);
+  
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+  
+  // Determine theme colors for charts
+  const isDarkMode = theme.palette.mode === 'dark';
+  const textColor = isDarkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)';
+  const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+  
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top',
+        labels: {
+          color: textColor,
+          font: {
+            family: 'Rubik, Assistant, sans-serif'
+          }
+        }
+      },
+      tooltip: {
+        rtl: true,
+        textDirection: 'rtl'
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: textColor,
+          font: {
+            family: 'Rubik, Assistant, sans-serif'
+          }
+        },
+        grid: {
+          color: gridColor
+        }
+      },
+      y: {
+        ticks: {
+          color: textColor,
+          font: {
+            family: 'Rubik, Assistant, sans-serif'
+          }
+        },
+        grid: {
+          color: gridColor
+        }
+      }
+    }
+  };
+  
+  const statusColors = {
+    appointment_scheduled: '#9C27B0',
+    requires_coordination: '#2196F3',
+    requires_soldier_coordination: '#FF9800',
+    completed: '#4CAF50',
+    waiting_for_budget_approval: '#FF9800',
+    waiting_for_doctor_referral: '#F44336',
+  };
+  
+  const priorityColors = {
+    low: '#8BC34A',
+    medium: '#FFEB3B',
+    high: '#FFC107',
+    urgent: '#F44336',
+    highest: '#B71C1C',
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  const handleTeamFilterChange = (event) => {
+    setFilterTeam(event.target.value);
+  };
+  
+  const getStatusChartData = () => {
+    if (!stats || !stats.status_breakdown) {
+      return { 
+        labels: [], 
+        datasets: [{ 
+          label: 'הפניות לפי סטטוס',
+          data: [], 
+          backgroundColor: [] 
+        }] 
+      };
+    }
+    
+    const statusLabels = {
+      new: 'חדש',
+      in_progress: 'בטיפול',
+      waiting_for_approval: 'ממתין לאישור',
+      appointment_scheduled: 'תור נקבע',
+      completed: 'הושלם',
+      cancelled: 'בוטל',
+      requires_coordination: 'דרוש תיאום',
+      requires_soldier_coordination: 'תיאום עם חייל',
+      waiting_for_medical_date: 'ממתין לתאריך',
+      waiting_for_budget_approval: 'ממתין לאישור',
+      waiting_for_doctor_referral: 'ממתין להפניה',
+      no_show: 'לא הגיע'
     };
     
-    fetchTasks();
-  }, []);
-  
-  // Filter tasks
-  useEffect(() => {
-    let filtered = [...tasks];
+    const labels = Object.keys(stats.status_breakdown).map(key => statusLabels[key] || key);
+    const data = Object.values(stats.status_breakdown);
+    const backgroundColor = Object.keys(stats.status_breakdown).map(key => statusColors[key] || '#999');
     
-    // Filter by status
-    if (filterStatus === 'completed') {
-      filtered = filtered.filter(task => task.completed);
-    } else if (filterStatus === 'pending') {
-      filtered = filtered.filter(task => !task.completed);
-    }
-    
-    // Filter by priority
-    if (filterPriority !== 'all') {
-      filtered = filtered.filter(task => task.priority === filterPriority);
-    }
-    
-    // Filter by category
-    if (filterCategory !== 'all') {
-      filtered = filtered.filter(task => task.category === filterCategory);
-    }
-    
-    // Sort by completion, due date, and priority
-    filtered.sort((a, b) => {
-      // First sort by completion
-      if (a.completed && !b.completed) return 1;
-      if (!a.completed && b.completed) return -1;
-      
-      // Then by due date
-      if (!a.completed) {
-        const dateA = new Date(a.due_date);
-        const dateB = new Date(b.due_date);
-        
-        if (dateA < dateB) return -1;
-        if (dateA > dateB) return 1;
-      }
-      
-      // Then by priority
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      return priorityOrder[a.priority] - priorityOrder[b.priority];
-    });
-    
-    setFilteredTasks(filtered);
-  }, [tasks, filterStatus, filterPriority, filterCategory]);
-  
-  // Open add form
-  const handleAddTask = () => {
-    setEditingTask(null);
-    setFormData({
-      title: '',
-      description: '',
-      category: 'general',
-      priority: 'medium',
-      due_date: '',
-      completed: false,
-      related_soldier: '',
-    });
-    setOpenForm(true);
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'הפניות לפי סטטוס',
+          data,
+          backgroundColor,
+        }
+      ]
+    };
   };
   
-  // Open edit form
-  const handleEditTask = (task) => {
-    setEditingTask(task);
-    setFormData({
-      title: task.title,
-      description: task.description || '',
-      category: task.category,
-      priority: task.priority,
-      due_date: task.due_date || '',
-      completed: task.completed,
-      related_soldier: task.related_soldier || '',
-    });
-    setOpenForm(true);
-  };
-  
-  // Form change handler
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
-  };
-  
-  // Save task
-  const handleSaveTask = async () => {
-    if (!formData.title) {
-      return; // Don't save task without title
+  const getPriorityChartData = () => {
+    if (!stats || !stats.priority_breakdown) {
+      return { 
+        labels: [], 
+        datasets: [{ 
+          label: 'הפניות לפי עדיפות',
+          data: [], 
+          backgroundColor: [] 
+        }] 
+      };
     }
     
-    try {
-      setLoading(true);
-      
-      if (editingTask) {
-        // Update existing task
-        // In a real project:
-        // await api.put(`/tasks/${editingTask.id}/`, formData);
-        
-        // Local update:
-        const updatedTasks = tasks.map(task =>
-          task.id === editingTask.id ? { ...task, ...formData } : task
-        );
-        setTasks(updatedTasks);
-      } else {
-        // Create new task
-        // In a real project:
-        // const response = await api.post('/tasks/', formData);
-        // const newTask = response.data;
-        
-        // Local creation:
-        const newTask = {
-          id: Math.max(0, ...tasks.map(t => t.id)) + 1,
-          ...formData,
-          created_at: new Date().toISOString().split('T')[0],
-        };
-        
-        setTasks([...tasks, newTask]);
-      }
-      
-      setOpenForm(false);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error saving task:', err);
-      setError('אירעה שגיאה בשמירת המשימה');
-      setLoading(false);
-    }
-  };
-  
-  // Handle delete click
-  const handleDeleteClick = (taskId) => {
-    setTaskIdToDelete(taskId);
-    setDeleteDialogOpen(true);
-  };
-  
-  // Delete task
-  const handleConfirmDelete = async () => {
-    try {
-      setLoading(true);
-      
-      // In a real project:
-      // await api.delete(`/tasks/${taskIdToDelete}/`);
-      
-      // Local deletion:
-      const updatedTasks = tasks.filter(task => task.id !== taskIdToDelete);
-      setTasks(updatedTasks);
-      
-      setDeleteDialogOpen(false);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error deleting task:', err);
-      setError('אירעה שגיאה במחיקת המשימה');
-      setLoading(false);
-    }
-  };
-  
-  // Toggle task completion
-  const handleToggleComplete = async (taskId) => {
-    try {
-      // Find the relevant task
-      const taskToUpdate = tasks.find(task => task.id === taskId);
-      if (!taskToUpdate) return;
-      
-      // Toggle status
-      const updatedTask = { ...taskToUpdate, completed: !taskToUpdate.completed };
-      
-      // In a real project:
-      // await api.patch(`/tasks/${taskId}/`, { completed: updatedTask.completed });
-      
-      // Local update:
-      const updatedTasks = tasks.map(task =>
-        task.id === taskId ? updatedTask : task
-      );
-      
-      setTasks(updatedTasks);
-    } catch (err) {
-      console.error('Error updating task status:', err);
-      setError('אירעה שגיאה בעדכון סטטוס המשימה');
-    }
-  };
-  
-  // Get priority color
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'high': return 'error';
-      case 'medium': return 'warning';
-      case 'low': return 'success';
-      default: return 'default';
-    }
-  };
-  
-  // Get priority label
-  const getPriorityLabel = (priority) => {
-    switch (priority) {
-      case 'high': return 'גבוהה';
-      case 'medium': return 'בינונית';
-      case 'low': return 'נמוכה';
-      default: return priority;
-    }
-  };
-  
-  // Get category icon
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case 'medical':
-        return <LocalHospitalIcon color="primary" />;
-      case 'training':
-        return <EventAvailableIcon color="secondary" />;
-      case 'meeting':
-        return <PersonOutlineIcon color="info" />;
-      case 'referral':
-        return <HealingIcon color="warning" />;
-      default:
-        return <AssignmentIcon />;
-    }
-  };
-  
-  // Get category label
-  const getCategoryLabel = (category) => {
-    switch (category) {
-      case 'medical': return 'רפואי';
-      case 'training': return 'אימון';
-      case 'meeting': return 'פגישה';
-      case 'referral': return 'הפניה';
-      case 'general': return 'כללי';
-      default: return category;
-    }
-  };
-  
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
+    const priorityLabels = {
+      low: 'נמוכה',
+      medium: 'בינונית',
+      high: 'גבוהה',
+      urgent: 'דחופה',
+      highest: 'דחוף ביותר',
+      minimal: 'זניח',
+    };
     
+    const labels = Object.keys(stats.priority_breakdown).map(key => priorityLabels[key] || key);
+    const data = Object.values(stats.priority_breakdown);
+    const backgroundColor = Object.keys(stats.priority_breakdown).map(key => priorityColors[key] || '#999');
+    
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'הפניות לפי עדיפות',
+          data,
+          backgroundColor,
+        }
+      ]
+    };
+  };
+  
+  const getMonthlyChartData = () => {
+    if (!stats || !stats.monthly_stats) {
+      return { 
+        labels: [], 
+        datasets: [
+          {
+            label: 'הפניות חדשות',
+            data: [],
+            borderColor: '#2196F3',
+            backgroundColor: 'rgba(33, 150, 243, 0.2)',
+            tension: 0.3,
+          },
+          {
+            label: 'הפניות שהושלמו',
+            data: [],
+            borderColor: '#4CAF50',
+            backgroundColor: 'rgba(76, 175, 80, 0.2)',
+            tension: 0.3,
+          }
+        ] 
+      };
+    }
+    
+    return {
+      labels: stats.monthly_stats.map(item => item.month_display),
+      datasets: [
+        {
+          label: 'הפניות חדשות',
+          data: stats.monthly_stats.map(item => item.created),
+          borderColor: '#2196F3',
+          backgroundColor: 'rgba(33, 150, 243, 0.2)',
+          tension: 0.3,
+        },
+        {
+          label: 'הפניות שהושלמו',
+          data: stats.monthly_stats.map(item => item.completed),
+          borderColor: '#4CAF50',
+          backgroundColor: 'rgba(76, 175, 80, 0.2)',
+          tension: 0.3,
+        }
+      ]
+    };
+  };
+  
+  const getReferralTypesChartData = () => {
+    if (!stats || !stats.referral_types_breakdown) {
+      return { 
+        labels: [], 
+        datasets: [{ 
+          label: 'סוגי הפניות',
+          data: [], 
+          backgroundColor: [] 
+        }] 
+      };
+    }
+    
+    const typeLabels = {
+      specialist: 'רופא מומחה',
+      imaging: 'בדיקות דימות',
+      lab: 'בדיקות מעבדה',
+      procedure: 'פרוצדורה',
+      therapy: 'טיפול',
+      surgery: 'ניתוח',
+      consultation: 'ייעוץ',
+      dental: 'טיפול שיניים',
+      other: 'אחר',
+    };
+    
+    const labels = Object.keys(stats.referral_types_breakdown).map(key => typeLabels[key] || key);
+    const data = Object.values(stats.referral_types_breakdown);
+    const backgroundColor = [
+      '#3F51B5', '#E91E63', '#00BCD4', '#FFC107', '#9C27B0', '#8BC34A', '#FF5722', '#607D8B', '#795548'
+    ];
+    
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'סוגי הפניות',
+          data,
+          backgroundColor,
+        }
+      ]
+    };
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '—';
     const date = new Date(dateString);
-    return date.toLocaleDateString('he-IL');
+    return `${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
   };
   
-  // Check if task is overdue
-  const isOverdue = (task) => {
-    if (task.completed || !task.due_date) return false;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const dueDate = new Date(task.due_date);
-    dueDate.setHours(0, 0, 0, 0);
-    
-    return dueDate < today;
-  };
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
   
-  // Calculate task statistics
-  const getTaskStats = () => {
-    const total = tasks.length;
-    const completed = tasks.filter(task => task.completed).length;
-    const pending = total - completed;
-    const overdue = tasks.filter(task => isOverdue(task)).length;
-    const highPriority = tasks.filter(task => !task.completed && task.priority === 'high').length;
-    
-    return { total, completed, pending, overdue, highPriority };
-  };
-  
-  const taskStats = getTaskStats();
-  
-  return (
-    <Box sx={{ width: '100%' }}>
-      {/* Title and actions (in standalone mode) */}
-      {standalone && (
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            משימות
+  if (error) {
+    return (
+      <Box p={3}>
+        <Alert 
+          severity="error" 
+          action={
+            <Button color="inherit" size="small" onClick={fetchDashboardData}>
+              נסה שוב
+            </Button>
+          }
+        >
+          {error}
+        </Alert>
+        
+        <Paper sx={{ p: 3, mt: 3 }}>
+          <Typography variant="h5" align="center" gutterBottom>
+            לא ניתן להציג את הנתונים כרגע
           </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleAddTask}
-          >
-            משימה חדשה
-          </Button>
-        </Box>
-      )}
-      
-      {/* Main panel */}
-      <Paper
-        elevation={standalone ? 1 : 0}
-        sx={{ 
-          p: standalone ? 2 : 1,
-          background: standalone ? undefined : 'transparent'
-        }}
-      >
-        {/* Title (not in standalone mode) */}
-        {!standalone && showTitle && (
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6" component="h2" sx={{ display: 'flex', alignItems: 'center' }}>
-              <AssignmentIcon sx={{ mr: 1 }} /> משימות נדרשות
-            </Typography>
-            <Box>
-              {!standalone && (
-                <Tooltip title="הוסף משימה">
-                  <IconButton size="small" color="primary" onClick={handleAddTask}>
-                    <AddIcon />
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title="סינון">
-                <IconButton 
-                  size="small" 
-                  color={showFilters ? "primary" : "default"}
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  <FilterListIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="רענן">
-                <IconButton 
-                  size="small" 
-                  onClick={() => setFilteredTasks([...tasks])}
-                >
-                  <RefreshIcon />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-        )}
-        
-        {/* Task stats */}
-        {standalone && (
-          <Box mb={3}>
-            <Grid container spacing={2}>
-              <Grid item xs={6} sm={3}>
-                <Paper 
-                  elevation={0}
-                  sx={{ 
-                    p: 1.5, 
-                    textAlign: 'center',
-                    bgcolor: 'primary.light',
-                    color: 'primary.contrastText',
-                    borderRadius: 2
-                  }}
-                >
-                  <Typography variant="h5">{taskStats.total}</Typography>
-                  <Typography variant="body2">סה"כ משימות</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper 
-                  elevation={0}
-                  sx={{ 
-                    p: 1.5, 
-                    textAlign: 'center',
-                    bgcolor: 'success.light',
-                    color: 'success.contrastText',
-                    borderRadius: 2
-                  }}
-                >
-                  <Typography variant="h5">{taskStats.completed}</Typography>
-                  <Typography variant="body2">הושלמו</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper 
-                  elevation={0}
-                  sx={{ 
-                    p: 1.5, 
-                    textAlign: 'center',
-                    bgcolor: 'warning.light',
-                    color: 'warning.contrastText',
-                    borderRadius: 2
-                  }}
-                >
-                  <Typography variant="h5">{taskStats.pending}</Typography>
-                  <Typography variant="body2">ממתינות</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Paper 
-                  elevation={0}
-                  sx={{ 
-                    p: 1.5, 
-                    textAlign: 'center',
-                    bgcolor: 'error.light',
-                    color: 'error.contrastText',
-                    borderRadius: 2
-                  }}
-                >
-                  <Badge badgeContent={taskStats.overdue} color="error">
-                    <Typography variant="h5">{taskStats.highPriority}</Typography>
-                  </Badge>
-                  <Typography variant="body2">דחופות</Typography>
-                </Paper>
-              </Grid>
-            </Grid>
-          </Box>
-        )}
-        
-        {/* Filter options */}
-        <Collapse in={showFilters}>
-          <Box sx={{ mb: 2, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>סטטוס</InputLabel>
-                  <Select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    label="סטטוס"
-                  >
-                    <MenuItem value="all">הכל</MenuItem>
-                    <MenuItem value="pending">ממתינות</MenuItem>
-                    <MenuItem value="completed">הושלמו</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              <Grid item xs={12} sm={4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>עדיפות</InputLabel>
-                  <Select
-                    value={filterPriority}
-                    onChange={(e) => setFilterPriority(e.target.value)}
-                    label="עדיפות"
-                  >
-                    <MenuItem value="all">הכל</MenuItem>
-                    <MenuItem value="high">גבוהה</MenuItem>
-                    <MenuItem value="medium">בינונית</MenuItem>
-                    <MenuItem value="low">נמוכה</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              <Grid item xs={12} sm={4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>קטגוריה</InputLabel>
-                  <Select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    label="קטגוריה"
-                  >
-                    <MenuItem value="all">הכל</MenuItem>
-                    <MenuItem value="medical">רפואי</MenuItem>
-                    <MenuItem value="training">אימון</MenuItem>
-                    <MenuItem value="meeting">פגישה</MenuItem>
-                    <MenuItem value="referral">הפניה</MenuItem>
-                    <MenuItem value="general">כללי</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </Box>
-        </Collapse>
-        
-        {/* Error message */}
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {/* Task list */}
-        {loading && filteredTasks.length === 0 ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
-        ) : filteredTasks.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <AssignmentIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
-            <Typography variant="body1" color="text.secondary">
-              אין משימות להצגה
-            </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={handleAddTask}
-              sx={{ mt: 2 }}
+          <Typography align="center">
+            אנא ודא שכל המיגרציות יושמו בהצלחה בצד השרת.
+          </Typography>
+          <Box display="flex" justifyContent="center" mt={3}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={fetchDashboardData}
+              startIcon={<RefreshIcon />}
             >
-              הוסף משימה חדשה
+              רענן נתונים
             </Button>
           </Box>
-        ) : (
-          <List 
-            sx={{ 
-              maxHeight: maxHeight, 
-              overflowY: maxHeight ? 'auto' : 'visible',
-              pr: 1
-            }}
-          >
-            {filteredTasks.map((task) => (
-              <ListItem
-                key={task.id}
-                disablePadding
-                sx={{
-                  mb: 1,
-                  bgcolor: 'background.paper',
-                  borderRadius: 1,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  ...(task.completed ? {
-                    opacity: 0.7,
-                  } : {}),
-                  ...(isOverdue(task) ? {
-                    borderLeft: '4px solid',
-                    borderLeftColor: 'error.main',
-                  } : {}),
-                }}
-              >
-                <Box sx={{ display: 'flex', width: '100%', p: 1 }}>
-                  <ListItemIcon sx={{ minWidth: 40 }}>
-                    <Checkbox
-                      edge="start"
-                      checked={task.completed}
-                      icon={<UncheckedIcon />}
-                      checkedIcon={<CheckIcon />}
-                      onChange={() => handleToggleComplete(task.id)}
-                      sx={{ color: getPriorityColor(task.priority) + '.main' }}
-                    />
-                  </ListItemIcon>
-                  
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            fontWeight: task.completed ? 'normal' : 'medium',
-                            textDecoration: task.completed ? 'line-through' : 'none',
-                          }}
-                        >
-                          {task.title}
-                        </Typography>
-                        
-                        {isOverdue(task) && !task.completed && (
-                          <Chip
-                            label="באיחור"
-                            color="error"
-                            size="small"
-                            sx={{ ml: 1 }}
-                          />
-                        )}
-                      </Box>
-                    }
-                    secondary={
-                      <Box sx={{ mt: 0.5 }}>
-                        {task.description && (
-                          <Typography 
-                            variant="body2" 
-                            color="text.secondary"
-                            sx={{
-                              textDecoration: task.completed ? 'line-through' : 'none',
-                              mb: 0.5,
-                            }}
-                          >
-                            {task.description}
-                          </Typography>
-                        )}
-                        
-                        <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-                          <Chip
-                            icon={getCategoryIcon(task.category)}
-                            label={getCategoryLabel(task.category)}
-                            size="small"
-                            variant="outlined"
-                          />
-                          
-                          <Chip
-                            label={getPriorityLabel(task.priority)}
-                            size="small"
-                            color={getPriorityColor(task.priority)}
-                          />
-                          
-                          {task.due_date && (
-                            <Chip
-                              icon={<AccessTimeIcon fontSize="small" />}
-                              label={formatDate(task.due_date)}
-                              size="small"
-                              variant="outlined"
-                              color={isOverdue(task) && !task.completed ? "error" : "default"}
-                            />
-                          )}
-                          
-                          {task.related_soldier && (
-                            <Chip
-                              icon={<PersonOutlineIcon fontSize="small" />}
-                              label={task.related_soldier}
-                              size="small"
-                              variant="outlined"
-                            />
-                          )}
-                        </Box>
-                      </Box>
+        </Paper>
+      </Box>
+    );
+  }
+  
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          לוח בקרה
+        </Typography>
+        
+        <Box display="flex" alignItems="center">
+          <FormControl sx={{ minWidth: 120, mr: 2 }} size="small">
+            <InputLabel id="team-filter-label">צוות</InputLabel>
+            <Select
+              labelId="team-filter-label"
+              id="team-filter"
+              value={filterTeam}
+              label="צוות"
+              onChange={handleTeamFilterChange}
+            >
+              <MenuItem value="all">הכל</MenuItem>
+              <MenuItem value="אתק">אתק</MenuItem>
+              <MenuItem value="רתק">רתק</MenuItem>
+              <MenuItem value="חוד">חוד</MenuItem>
+              <MenuItem value="מפלג">מפלג</MenuItem>
+            </Select>
+          </FormControl>
+          
+          <Tooltip title="רענן נתונים">
+            <IconButton onClick={fetchDashboardData}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+      
+      <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+        <Button 
+          variant="outlined" 
+          color="primary"
+          startIcon={<MedicalServicesIcon />}
+          onClick={() => navigate('/referrals', { state: { openForm: true } })}
+        >
+          הפניה חדשה
+        </Button>
+        
+        <Button 
+          variant="outlined" 
+          color="secondary"
+          startIcon={<CalendarTodayIcon />}
+          onClick={() => navigate('/referrals', { state: { todayAppointments: true } })}
+        >
+          תורים להיום ({stats?.today_appointments || 0})
+        </Button>
+        
+        <Button 
+          variant="outlined" 
+          color="warning"
+          startIcon={<AccessTimeIcon />}
+          onClick={() => navigate('/referrals', { state: { status: ['requires_coordination', 'requires_soldier_coordination'] } })}
+        >
+          דורש תיאום ({stats?.coordination_required || '—'})
+        </Button>
+        
+        <Button 
+          variant="outlined" 
+          color="error"
+          startIcon={<WarningIcon />}
+          onClick={() => navigate('/referrals', { state: { filterPriority: 'urgent' } })}
+        >
+          הפניות דחופות ({stats?.urgent_referrals || '—'})
+        </Button>
+      </Box>
+      
+      <Grid container spacing={3} mb={4}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Card raised>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <AssignmentIcon color="primary" sx={{ fontSize: 48, mb: 1 }} />
+              <Typography variant="h4" component="div" color="primary" sx={{ fontWeight: 'bold' }}>
+                {stats?.total_referrals || 0}
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                סה"כ הפניות
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card raised>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <AccessTimeIcon color="info" sx={{ fontSize: 48, mb: 1 }} />
+              <Typography variant="h4" component="div" color="info.main" sx={{ fontWeight: 'bold' }}>
+                {stats?.open_referrals || 0}
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                הפניות פתוחות
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card raised>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <WarningIcon color="error" sx={{ fontSize: 48, mb: 1 }} />
+              <Typography variant="h4" component="div" color="error" sx={{ fontWeight: 'bold' }}>
+                {stats?.urgent_referrals || 0}
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                הפניות דחופות
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card raised>
+            <CardContent sx={{ textAlign: 'center', py: 3 }}>
+              <EventIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
+              <Typography variant="h4" component="div" color="success.main" sx={{ fontWeight: 'bold' }}>
+                {stats?.today_appointments || 0}
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                תורים להיום
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+      
+      <Paper sx={{ mb: 4 }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange} 
+          variant="scrollable"
+          scrollButtons="auto"
+          textColor="primary"
+          indicatorColor="primary"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="סקירה כללית" />
+          <Tab label="תורים ופעילות" />
+          <Tab label="משימות" />
+          <Tab label="ניתוח נתונים" />
+        </Tabs>
+
+        {activeTab === 0 && (
+          <Box p={3}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardHeader 
+                    title="תורים לשבוע הקרוב" 
+                    action={
+                      <Button 
+                        size="small" 
+                        onClick={() => navigate('/referrals', { state: { filterAppointmentWeek: true } })}
+                        endIcon={<ArrowForwardIcon />}
+                      >
+                        כל התורים
+                      </Button>
                     }
                   />
-                  
-                  <ListItemSecondaryAction>
-                    <Box sx={{ display: 'flex' }}>
-                      <Tooltip title="ערוך">
-                        <IconButton
-                          edge="end"
-                          size="small"
-                          onClick={() => handleEditTask(task)}
-                          sx={{ mr: 0.5 }}
+                  <Divider />
+                  <CardContent sx={{ p: 0 }}>
+                    {weekAppointments.length > 0 ? (
+                      <List sx={{ p: 0 }}>
+                        {weekAppointments.map((appointment) => (
+                          <React.Fragment key={appointment.id}>
+                            <ListItem 
+                              button 
+                              onClick={() => navigate(`/referrals/${appointment.id}`)}
+                              sx={{ borderRadius: 1 }}
+                            >
+                              <ListItemIcon>
+                                <EventIcon color="primary" />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Typography variant="subtitle1" fontWeight="medium">
+                                      {appointment.full_name}
+                                    </Typography>
+                                    <Chip 
+                                      label={appointment.priority} 
+                                      color={priorityColors[appointment.priority] ? appointment.priority : 'default'}
+                                      size="small"
+                                      sx={{ ml: 1 }}
+                                    />
+                                  </Box>
+                                }
+                                secondary={
+                                  <>
+                                    <Typography component="span" variant="body2" color="text.primary" display="block">
+                                      {appointment.referral_details}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                                      <CalendarTodayIcon fontSize="small" sx={{ mr: 0.5, fontSize: 14 }} />
+                                      <Typography variant="caption">
+                                        {formatDateTime(appointment.appointment_date)}
+                                      </Typography>
+                                      {appointment.appointment_location && (
+                                        <>
+                                          <Box sx={{ mx: 1 }}>|</Box>
+                                          <Typography variant="caption">
+                                            {appointment.appointment_location}
+                                          </Typography>
+                                        </>
+                                      )}
+                                    </Box>
+                                  </>
+                                }
+                              />
+                            </ListItem>
+                            <Divider variant="inset" component="li" />
+                          </React.Fragment>
+                        ))}
+                      </List>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 3 }}>
+                        <Typography color="text.secondary">
+                          אין תורים מתוכננים לשבוע הקרוב
+                        </Typography>
+                        <Button 
+                          variant="outlined" 
+                          startIcon={<AddIcon />}
+                          sx={{ mt: 1 }}
+                          onClick={() => navigate('/referrals', { state: { openForm: true } })}
                         >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      
-                      <Tooltip title="מחק">
-                        <IconButton
-                          edge="end"
-                          size="small"
-                          onClick={() => handleDeleteClick(task.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </ListItemSecondaryAction>
-                </Box>
-              </ListItem>
-            ))}
-          </List>
+                          הוסף הפניה חדשה
+                        </Button>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardHeader 
+                    title="הפניות הדורשות תיאום" 
+                    action={
+                      <Button 
+                        size="small" 
+                        onClick={() => navigate('/referrals', { state: { status: ['requires_coordination', 'requires_soldier_coordination'] } })}
+                        endIcon={<ArrowForwardIcon />}
+                      >
+                        כל ההפניות
+                      </Button>
+                    }
+                  />
+                  <Divider />
+                  <CardContent sx={{ p: 0 }}>
+                    {pendingReferrals.length > 0 ? (
+                      <List sx={{ p: 0 }}>
+                        {pendingReferrals.map((referral) => (
+                          <React.Fragment key={referral.id}>
+                            <ListItem 
+                              button 
+                              onClick={() => navigate(`/referrals/${referral.id}`)}
+                              sx={{ borderRadius: 1 }}
+                            >
+                              <ListItemIcon>
+                                <PeopleIcon color={referral.status === 'requires_soldier_coordination' ? 'warning' : 'info'} />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Typography variant="subtitle1" fontWeight="medium">
+                                      {referral.full_name}
+                                    </Typography>
+                                    <Chip 
+                                      label={referral.priority} 
+                                      color={priorityColors[referral.priority] ? referral.priority : 'default'}
+                                      size="small"
+                                      sx={{ ml: 1 }}
+                                    />
+                                  </Box>
+                                }
+                                secondary={
+                                  <>
+                                    <Typography component="span" variant="body2" color="text.primary" display="block">
+                                      {referral.referral_details}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                                      <Chip
+                                        label={referral.status === 'requires_soldier_coordination' ? 'תיאום עם חייל' : 'דרוש תיאום'}
+                                        size="small"
+                                        color={referral.status === 'requires_soldier_coordination' ? 'warning' : 'info'}
+                                        variant="outlined"
+                                      />
+                                      {referral.team && (
+                                        <Typography variant="caption" sx={{ ml: 1 }}>
+                                          צוות: {referral.team}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  </>
+                                }
+                              />
+                            </ListItem>
+                            <Divider variant="inset" component="li" />
+                          </React.Fragment>
+                        ))}
+                      </List>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 3 }}>
+                        <Typography color="text.secondary">
+                          אין הפניות הדורשות תיאום כרגע
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader 
+                    title="הפניות דחופות" 
+                    action={
+                      <Button 
+                        size="small" 
+                        onClick={() => navigate('/referrals', { state: { filterPriority: 'urgent' } })}
+                        endIcon={<ArrowForwardIcon />}
+                      >
+                        כל ההפניות הדחופות
+                      </Button>
+                    }
+                  />
+                  <Divider />
+                  <CardContent sx={{ p: 0 }}>
+                    {filteredUrgentReferrals.length > 0 ? (
+                      <Grid container spacing={2} sx={{ p: 2 }}>
+                        {filteredUrgentReferrals.map((referral) => (
+                          <Grid item xs={12} sm={6} md={4} key={referral.id}>
+                            <Card 
+                              variant="outlined" 
+                              sx={{ 
+                                '&:hover': { 
+                                  borderColor: 'primary.main',
+                                  boxShadow: 1 
+                                },
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => navigate(`/referrals/${referral.id}`)}
+                            >
+                              <CardContent>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <Typography variant="subtitle1" fontWeight="bold">
+                                    {referral.full_name}
+                                  </Typography>
+                                  <Chip 
+                                    label={referral.priority} 
+                                    color={priorityColors[referral.priority] ? referral.priority : 'default'}
+                                    size="small"
+                                  />
+                                </Box>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>
+                                  {referral.referral_details}
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                                  <Chip 
+                                    label={referral.status === 'requires_soldier_coordination' ? 'תיאום עם חייל' : referral.status_display || referral.status} 
+                                    size="small" 
+                                    variant="outlined"
+                                  />
+                                  <Chip label={`צוות: ${referral.team}`} size="small" variant="outlined" />
+                                </Box>
+                              </CardContent>
+                            </Card>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : (
+                      <Box sx={{ textAlign: 'center', py: 3 }}>
+                        <Typography color="text.secondary">
+                          אין הפניות דחופות כרגע
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+
+        {activeTab === 1 && (
+          <Box p={3}>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="תורים להיום" />
+                  <Divider />
+                  <CardContent>
+                    {todayAppointments.length > 0 ? (
+                      <List>
+                        {todayAppointments.map((appointment) => (
+                          <React.Fragment key={appointment.id}>
+                            <ListItem 
+                              button 
+                              onClick={() => navigate(`/referrals/${appointment.id}`)}
+                              sx={{ borderRadius: 1 }}
+                            >
+                              <ListItemIcon>
+                                <EventIcon color="primary" />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={
+                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Typography variant="subtitle1" fontWeight="medium">
+                                      {appointment.full_name}
+                                    </Typography>
+                                    <Chip 
+                                      label={appointment.priority_display || appointment.priority}
+                                      color={priorityColors[appointment.priority] ? appointment.priority : 'default'}
+                                      size="small"
+                                      sx={{ ml: 1 }}
+                                    />
+                                  </Box>
+                                }
+                                secondary={
+                                  <>
+                                    <Typography component="span" variant="body2" color="text.primary">
+                                      {appointment.referral_details}
+                                    </Typography>
+                                    {appointment.appointment_date && ` — ${new Date(appointment.appointment_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
+                                    {appointment.appointment_location && ` — ${appointment.appointment_location}`}
+                                  </>
+                                }
+                              />
+                            </ListItem>
+                            <Divider variant="inset" component="li" />
+                          </React.Fragment>
+                        ))}
+                      </List>
+                    ) : (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+                        <Typography variant="body1" color="text.secondary">
+                          אין תורים מתוכננים להיום
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Card>
+                  <CardHeader title="פעילות אחרונה" />
+                  <Divider />
+                  <CardContent>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <Paper variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                            <CalendarTodayIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 1 }} />
+                            היום, 09:45
+                          </Typography>
+                          <Typography variant="body1">
+                            נקבע תור חדש עבור "אלון כהן"
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <Paper variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                            <CalendarTodayIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 1 }} />
+                            היום, 08:30
+                          </Typography>
+                          <Typography variant="body1">
+                            הוספת הפניה חדשה ל"דני לוי"
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <Paper variant="outlined" sx={{ p: 2 }}>
+                          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                            <CalendarTodayIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 1 }} />
+                            אתמול, 15:20
+                          </Typography>
+                          <Typography variant="body1">
+                            עדכון סטטוס הפניה ל"רון גולן"
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+
+        {activeTab === 2 && (
+          <Box p={3}>
+            <TaskManager showFilters={true} standalone={true} />
+          </Box>
+        )}
+
+        {activeTab === 3 && (
+          <Box p={3}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 2, height: 350 }}>
+                  <Typography variant="h6" gutterBottom>
+                    התפלגות הפניות לפי סטטוס
+                  </Typography>
+                  <Box sx={{ height: 290 }}>
+                    <Bar options={chartOptions} data={getStatusChartData()} />
+                  </Box>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 2, height: 350 }}>
+                  <Typography variant="h6" gutterBottom>
+                    התפלגות הפניות לפי עדיפות
+                  </Typography>
+                  <Box sx={{ height: 290 }}>
+                    <Doughnut 
+                      options={{
+                        ...chartOptions,
+                        maintainAspectRatio: false,
+                      }} 
+                      data={getPriorityChartData()} 
+                    />
+                  </Box>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2, height: 400 }}>
+                  <Typography variant="h6" gutterBottom>
+                    הפניות חדשות והפניות שהושלמו לפי חודשים
+                  </Typography>
+                  <Box sx={{ height: 340 }}>
+                    <Line options={chartOptions} data={getMonthlyChartData()} />
+                  </Box>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 2, height: 350 }}>
+                  <Typography variant="h6" gutterBottom>
+                    התפלגות לפי סוג הפניה
+                  </Typography>
+                  <Box sx={{ height: 290 }}>
+                    <Bar options={chartOptions} data={getReferralTypesChartData()} />
+                  </Box>
+                </Paper>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Paper sx={{ p: 2, height: 350 }}>
+                  <Typography variant="h6" gutterBottom>
+                    סטטיסטיקה לפי צוות
+                  </Typography>
+                  <TableContainer sx={{ height: 290, overflow: 'auto' }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>צוות</TableCell>
+                          <TableCell align="center">הפניות פתוחות</TableCell>
+                          <TableCell align="center">תורים השבוע</TableCell>
+                          <TableCell align="center">דורש תיאום</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {/* נתונים לדוגמה - במערכת אמיתית יש לקבל מה-API */}
+                        <TableRow>
+                          <TableCell component="th" scope="row">אתק</TableCell>
+                          <TableCell align="center">12</TableCell>
+                          <TableCell align="center">5</TableCell>
+                          <TableCell align="center">3</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell component="th" scope="row">רתק</TableCell>
+                          <TableCell align="center">8</TableCell>
+                          <TableCell align="center">3</TableCell>
+                          <TableCell align="center">1</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell component="th" scope="row">חוד</TableCell>
+                          <TableCell align="center">15</TableCell>
+                          <TableCell align="center">7</TableCell>
+                          <TableCell align="center">4</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell component="th" scope="row">מפלג</TableCell>
+                          <TableCell align="center">10</TableCell>
+                          <TableCell align="center">2</TableCell>
+                          <TableCell align="center">2</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
         )}
       </Paper>
-      
-      {/* Floating button in standalone mode */}
-      {standalone && (
-        <Fab
-          color="primary"
-          aria-label="add"
-          onClick={handleAddTask}
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            left: 16,
-          }}
-        >
-          <AddIcon />
-        </Fab>
-      )}
-      
-      {/* Add/Edit form */}
-      <Dialog
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>
-          {editingTask ? 'עריכת משימה' : 'הוספת משימה חדשה'}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField
-                name="title"
-                label="כותרת המשימה"
-                fullWidth
-                required
-                value={formData.title}
-                onChange={handleFormChange}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <TextField
-                name="description"
-                label="תיאור"
-                fullWidth
-                multiline
-                rows={2}
-                value={formData.description}
-                onChange={handleFormChange}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>קטגוריה</InputLabel>
-                <Select
-                  name="category"
-                  value={formData.category}
-                  onChange={handleFormChange}
-                  label="קטגוריה"
-                >
-                  <MenuItem value="general">כללי</MenuItem>
-                  <MenuItem value="medical">רפואי</MenuItem>
-                  <MenuItem value="training">אימון</MenuItem>
-                  <MenuItem value="meeting">פגישה</MenuItem>
-                  <MenuItem value="referral">הפניה</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>עדיפות</InputLabel>
-                <Select
-                  name="priority"
-                  value={formData.priority}
-                  onChange={handleFormChange}
-                  label="עדיפות"
-                >
-                  <MenuItem value="low">נמוכה</MenuItem>
-                  <MenuItem value="medium">בינונית</MenuItem>
-                  <MenuItem value="high">גבוהה</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                name="due_date"
-                label="תאריך יעד"
-                type="date"
-                fullWidth
-                value={formData.due_date}
-                onChange={handleFormChange}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
-              <TextField
-                name="related_soldier"
-                label="חייל קשור"
-                fullWidth
-                value={formData.related_soldier}
-                onChange={handleFormChange}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    name="completed"
-                    checked={formData.completed}
-                    onChange={handleFormChange}
-                  />
-                }
-                label="משימה הושלמה"
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenForm(false)}>
-            ביטול
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSaveTask}
-            disabled={!formData.title}
-          >
-            {editingTask ? 'עדכן' : 'הוסף'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* דיאלוג מחיקה */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>מחיקת משימה</DialogTitle>
-        <DialogContent>
-          <Typography>
-            האם אתה בטוח שברצונך למחוק את המשימה הזו?
-            פעולה זו אינה ניתנת לביטול.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            ביטול
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleConfirmDelete}
-          >
-            מחק
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
 
-export default TaskManager;
+export default Dashboard;
