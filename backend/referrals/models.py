@@ -72,7 +72,10 @@ class Referral(models.Model):
         verbose_name = 'הפניה רפואית'
         verbose_name_plural = 'הפניות רפואיות'
         ordering = ['-updated_at']
+        # הוסף את השורה הבאה:
+        unique_together = ('personal_id', 'referral_type', 'referral_details')
         indexes = [
+
             models.Index(fields=['full_name']),
             models.Index(fields=['personal_id']),
             models.Index(fields=['team']),

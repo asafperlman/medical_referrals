@@ -3,7 +3,6 @@
 import os
 import sys
 
-DATA_FILE="referrals/management/commands/data_to_import.txt"
 
 def main():
     """Run administrative tasks."""

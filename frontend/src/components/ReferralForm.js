@@ -138,8 +138,12 @@ const ReferralForm = ({ open, onClose, onSave, referral = null }) => {
       
       // טיפול בשגיאות מהשרת
       if (error.response && error.response.data) {
+        // בודק אם יש שגיאת non_field_errors (שגיאת ולידציה כללית)
+        if (error.response.data.non_field_errors) {
+          setSubmitError(error.response.data.non_field_errors[0] || 'אירעה שגיאה בשמירת ההפניה');
+        }
         // אם יש שגיאות בשדות ספציפיים
-        if (typeof error.response.data === 'object') {
+        else if (typeof error.response.data === 'object') {
           setErrors(error.response.data);
         } else {
           // שגיאה כללית
@@ -152,6 +156,7 @@ const ReferralForm = ({ open, onClose, onSave, referral = null }) => {
       setLoading(false);
     }
   };
+  
   
   return (
     <Dialog 

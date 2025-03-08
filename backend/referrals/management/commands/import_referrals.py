@@ -118,25 +118,37 @@ class Command(BaseCommand):
                         # המרת סטטוס ודחיפות למפתחות המודל
                         status_key = status_mapping.get(status, 'requires_coordination')
                         priority_key = priority_mapping.get(priority, 'medium')
-                        
-                        # יצירת ההפניה
-                        referral = Referral(
-                            full_name=full_name,
+                        existing_referral = Referral.objects.filter(
                             personal_id=personal_id,
-                            team=team,
                             referral_type=referral_type,
-                            referral_details=referral_details,
-                            has_documents=has_documents,
-                            priority=priority_key,
-                            status=status_key,
-                            appointment_date=appt_date,
-                            appointment_path=appointment_path,
-                            appointment_location=appointment_location,
-                            notes=notes,
-                            created_by=default_user,
-                            last_updated_by=default_user,
-                            reference_date=ref_date
-                        )
+                            referral_details=referral_details
+                        ).first()
+            
+                        if existing_referral:
+                            self.stdout.write(self.style.WARNING(
+                                f'דילוג על הפניה כפולה: {full_name}, {personal_id}, {referral_details}'
+                            ))
+                            continue
+                        
+                        else:
+                            # יצירת ההפניה
+                            referral = Referral(
+                                full_name=full_name,
+                                personal_id=personal_id,
+                                team=team,
+                                referral_type=referral_type,
+                                referral_details=referral_details,
+                                has_documents=has_documents,
+                                priority=priority_key,
+                                status=status_key,
+                                appointment_date=appt_date,
+                                appointment_path=appointment_path,
+                                appointment_location=appointment_location,
+                                notes=notes,
+                                created_by=default_user,
+                                last_updated_by=default_user,
+                                reference_date=ref_date
+                            )
                         
                         # שמירה עם תאריכי יצירה ועדכון מותאמים
                         referral.save()

@@ -183,29 +183,7 @@ class ReferralListSerializer(serializers.ModelSerializer):
     
     def get_is_urgent(self, obj):
         return obj.is_urgent    
-    status_display = serializers.SerializerMethodField()
-    priority_display = serializers.SerializerMethodField()
-    days_since_update = serializers.SerializerMethodField()
     
-    class Meta:
-        model = Referral
-        fields = ['id', 'full_name', 'personal_id', 'team', 'referral_details', 'has_documents',
-                 'status', 'status_display', 'priority', 'priority_display', 'appointment_date',
-                 'updated_at', 'days_since_update']
-    
-    def get_status_display(self, obj):
-        return obj.get_status_display()
-        
-    def get_priority_display(self, obj):
-        return obj.get_priority_display()
-        
-    def get_days_since_update(self, obj):
-        from django.utils import timezone
-        import datetime
-        
-        now = timezone.now()
-        delta = now - obj.updated_at
-        return delta.days
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -255,7 +233,36 @@ class SystemSettingSerializer(serializers.ModelSerializer):
         validated_data['last_updated_by'] = user
         return super().update(instance, validated_data)
 
-
+class ReferralSerializer(serializers.ModelSerializer):
+    # קוד קיים...
+    
+    def validate(self, data):
+        """
+        וודא שאין כפילות של הפניה עבור אותו חייל עם אותו סוג הפניה
+        """
+        # בודק אם זו עריכה (יש instance) או יצירה חדשה
+        instance = getattr(self, 'instance', None)
+        personal_id = data.get('personal_id')
+        referral_type = data.get('referral_type')
+        referral_details = data.get('referral_details')
+        
+        # בודק אם כבר קיימת הפניה עם אותם פרטים
+        existing_referral = Referral.objects.filter(
+            personal_id=personal_id,
+            referral_type=referral_type,
+            referral_details=referral_details
+        )
+        
+        # אם זו עריכה, מוציא את ההפניה הנוכחית מהבדיקה
+        if instance:
+            existing_referral = existing_referral.exclude(id=instance.id)
+        
+        if existing_referral.exists():
+            raise serializers.ValidationError(
+                "כבר קיימת הפניה זהה עבור חייל זה עם אותו סוג הפניה ופרטים."
+            )
+            
+        return data
 class DashboardStatsSerializer(serializers.Serializer):
     """
     סריאלייזר לנתוני לוח המחוונים

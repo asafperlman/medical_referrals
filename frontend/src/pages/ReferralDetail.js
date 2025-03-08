@@ -40,7 +40,6 @@ import {
   Delete as RemoveIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
 import { useAuth } from '../context/AuthContext';
 import ReferralForm from '../components/ReferralForm';
 
@@ -75,16 +74,12 @@ const InfoField = ({ label, value, icon, chipColor }) => {
 };
 
 // כפתור העלאת קובץ עם סגנון מותאם
-const UploadButton = styled('label')(({ theme }) => ({
-  display: 'inline-block',
-  cursor: 'pointer',
-}));
+
 
 const ReferralDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { api } = useAuth();
-  const theme = useTheme();
   
   // מצבים
   const [referral, setReferral] = useState(null);

@@ -27,7 +27,6 @@ import {
   Backdrop,
   CircularProgress,
   Divider,
-  useTheme,
   Alert,
   Collapse,
   Dialog,
@@ -55,7 +54,7 @@ const ReferralsPage = () => {
   const { api } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const theme = useTheme();
+  
   
   // מצבים עבור הטבלה
   const [referrals, setReferrals] = useState([]);

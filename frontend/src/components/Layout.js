@@ -84,7 +84,7 @@ const Layout = () => {
   // תיקון: עדכון פונקציית ניווט לסגירת התפריט לאחר לחיצה
   const handleNavigate = (path, state) => {
     navigate(path, state ? { state } : undefined);
-    handleCloseDrawer(); // סגירת התפריט בלחיצה על פריט
+    handleCloseDrawer(); // חשוב - זה סוגר את התפריט בלחיצה
   };
   
   const handleLogout = () => {
