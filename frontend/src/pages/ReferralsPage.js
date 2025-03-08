@@ -1,6 +1,7 @@
 // medical-referrals/frontend/src/pages/ReferralsPage.js
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Assignment as AssignmentIcon } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -42,48 +43,61 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   FileDownload as FileDownloadIcon,
-  Assignment as AssignmentIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { useAuth } from '../context/AuthContext';
 import ReferralForm from '../components/ReferralForm';
+
+const initialFilters = {
+  status: [],
+  priority: [],
+  referral_details: [],
+  team: [],
+  has_documents: '',
+};
 
 const ReferralsPage = () => {
   const { api } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  
-  // מצבים עבור הטבלה
+
+  // מצבי טבלה
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
-  
-  // מצבים עבור החיפוש והסינון
-  const [showFilters, setShowFilters] = useState(false);
+
+  // מצבי קלט (עד לחיצה על "חפש")
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({
-    status: [],
-    priority: [],
-    referral_type: [],
-    team: [],
-    created_at_after: '',
-    created_at_before: '',
-    appointment_date_after: '',
-    appointment_date_before: '',
-    has_documents: '',
-  });
-  
-  // מצבים עבור הטופס
+  const [filters, setFilters] = useState(initialFilters);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // ערכי חיפוש מופעלים (המשמשים לשליחת בקשה)
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+
+  // רשימת "הפניה מבוקשת" (מופקת מהנתונים)
+  const [availableReferralDetails, setAvailableReferralDetails] = useState([]);
+
+  // מצב מיון לפי צוות (למשל, "team" לעולה, "-team" לירידה)
+  const [sortOrder, setSortOrder] = useState('');
+
+  // מצבי טופס הפניה
   const [openForm, setOpenForm] = useState(false);
   const [editingReferral, setEditingReferral] = useState(null);
-  
-  // רשימות ערכים לתפריטי הסינון
+
+  // דיאלוג מחיקה
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingReferralId, setDeletingReferralId] = useState(null);
+
+  // הגדרות אפשרויות סטטוס ועדיפות
   const statusOptions = [
     { value: 'appointment_scheduled', label: 'נקבע תור' },
     { value: 'requires_coordination', label: 'דרוש תיאום' },
@@ -95,7 +109,6 @@ const ReferralsPage = () => {
     { value: 'waiting_for_doctor_referral', label: 'ממתין להפניה מרופא' },
     { value: 'no_show', label: 'לא הגיע לתור' },
   ];
-  
   const priorityOptions = [
     { value: 'highest', label: 'דחוף ביותר' },
     { value: 'urgent', label: 'דחוף' },
@@ -104,20 +117,7 @@ const ReferralsPage = () => {
     { value: 'low', label: 'נמוך' },
     { value: 'minimal', label: 'זניח' },
   ];
-  
-  const referralTypeOptions = [
-    { value: 'specialist', label: 'רופא מומחה' },
-    { value: 'imaging', label: 'בדיקות דימות' },
-    { value: 'lab', label: 'בדיקות מעבדה' },
-    { value: 'procedure', label: 'פרוצדורה' },
-    { value: 'therapy', label: 'טיפול' },
-    { value: 'surgery', label: 'ניתוח' },
-    { value: 'consultation', label: 'ייעוץ' },
-    { value: 'dental', label: 'טיפול שיניים' },
-    { value: 'other', label: 'אחר' },
-  ];
-  
-  // עבור הגדרות לפי צבעים
+
   const statusColors = {
     new: 'success',
     in_progress: 'info',
@@ -132,7 +132,6 @@ const ReferralsPage = () => {
     waiting_for_doctor_referral: 'error',
     no_show: 'error',
   };
-  
   const priorityColors = {
     highest: 'error',
     urgent: 'error',
@@ -141,48 +140,44 @@ const ReferralsPage = () => {
     low: 'success',
     minimal: 'default',
   };
-  
-  // פונקציית טעינת ההפניות עם useCallback
+
+  // פונקציה לטעינת ההפניות – חשוב לשים לב לפרמטר "referral_details__in" ולפרמטר המיון "ordering"
   const fetchReferrals = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
     try {
-      // בניית פרמטרים לבקשה
       const params = {
-        page: page + 1, // Django REST framework מתחיל מעמוד 1
+        page: page + 1, // DRF מתחיל מעמוד 1
         page_size: rowsPerPage,
-        search: searchQuery,
+        search: appliedSearchQuery,
       };
-      
-      // הוספת פרמטרים של סינון
-      if (filters.status.length > 0) params.status__in = filters.status.join(',');
-      if (filters.priority.length > 0) params.priority__in = filters.priority.join(',');
-      if (filters.referral_type.length > 0) params.referral_type__in = filters.referral_type.join(',');
-      if (filters.team.length > 0) params.team__in = filters.team.join(',');
-      if (filters.created_at_after) params.created_at__gte = filters.created_at_after;
-      if (filters.created_at_before) params.created_at__lte = filters.created_at_before;
-      if (filters.appointment_date_after) params.appointment_date__gte = filters.appointment_date_after;
-      if (filters.appointment_date_before) params.appointment_date__lte = filters.appointment_date_before;
-      if (filters.has_documents !== '') params.has_documents = filters.has_documents;
-      
+
+      if (appliedFilters.status.length > 0)
+        params.status__in = appliedFilters.status.join(',');
+      if (appliedFilters.priority.length > 0)
+        params.priority__in = appliedFilters.priority.join(',');
+      if (appliedFilters.referral_details.length > 0)
+        params.referral_details__in = appliedFilters.referral_details.join(',');
+      if (appliedFilters.team.length > 0)
+        params.team__in = appliedFilters.team.join(',');
+      if (appliedFilters.has_documents !== '')
+        params.has_documents = appliedFilters.has_documents;
+      if (sortOrder) params.ordering = sortOrder;
+
       const response = await api.get('/referrals/', { params });
-      
-      // בדיקת תקינות התגובה
       if (response.data && 'results' in response.data) {
         setReferrals(response.data.results || []);
         setTotalCount(response.data.count || 0);
+        // הפקת רשימת הערכים הייחודיים לשדה "הפניה מבוקשת"
+        const details = Array.from(new Set(response.data.results.map(r => r.referral_details).filter(Boolean)));
+        setAvailableReferralDetails(details);
       } else {
-        // אם התגובה לא מכילה את המבנה הצפוי
         console.error('Unexpected API response format:', response.data);
         setError('תגובת השרת לא תקינה. אנא פנה לתמיכה.');
       }
-      
       setLoading(false);
     } catch (err) {
       console.error('Error fetching referrals:', err);
-      
-      // הודעת שגיאה משופרת
       if (err.response) {
         if (err.response.status === 500) {
           setError('אירעה שגיאה בשרת. ייתכן שיש מיגרציות שלא יושמו. נא לפנות למנהל המערכת.');
@@ -194,135 +189,82 @@ const ReferralsPage = () => {
       } else {
         setError('אירעה שגיאה בטעינת הנתונים. אנא נסה שוב.');
       }
-      
       setLoading(false);
     }
-  }, [api, page, rowsPerPage, searchQuery, filters]);
-  
-  // טעינת נתונים ראשונית
+  }, [api, page, rowsPerPage, appliedSearchQuery, appliedFilters, sortOrder]);
+
   useEffect(() => {
-    // Clear location state after processing
+    fetchReferrals();
+  }, [fetchReferrals]);
+
+  useEffect(() => {
     if (location.state) {
-      // Apply filters from location state if necessary
+      let newFilters = { ...filters };
       if (location.state.filterPriority) {
-        setFilters(prev => ({
-          ...prev,
-          priority: [location.state.filterPriority]
-        }));
+        newFilters.priority = [location.state.filterPriority];
       }
-      
-      if (location.state.todayAppointments) {
-        // Set filter for today's appointments
-        const today = new Date().toISOString().split('T')[0];
-        setFilters(prev => ({
-          ...prev,
-          appointment_date_after: today,
-          appointment_date_before: today
-        }));
-      }
-      
-      if (location.state.openForm) {
-        setOpenForm(true);
-      }
-      
-      // Replace the URL without the state
+      setFilters(newFilters);
+      setAppliedFilters(newFilters);
+      if (location.state.openForm) setOpenForm(true);
       navigate(location.pathname, { replace: true });
     }
-    
-    fetchReferrals();
-  }, [location.pathname, location.state, navigate, fetchReferrals]);
-  
-  // לטעון מחדש כאשר עמוד או מספר שורות משתנים
-  useEffect(() => {
-    fetchReferrals();
-  }, [page, rowsPerPage, fetchReferrals]);
-  
-  // חיפוש והחלת סינון
+  }, [location.state, location.pathname, navigate, filters]);
+
   const handleSearch = () => {
-    setPage(0); // חזרה לעמוד הראשון
-    fetchReferrals();
+    setPage(0);
+    setAppliedSearchQuery(searchQuery);
+    setAppliedFilters(filters);
   };
-  
-  // איפוס הסינון והחיפוש
+
   const handleClearFilters = () => {
     setSearchQuery('');
-    setFilters({
-      status: [],
-      priority: [],
-      referral_type: [],
-      team: [],
-      created_at_after: '',
-      created_at_before: '',
-      appointment_date_after: '',
-      appointment_date_before: '',
-      has_documents: '',
-    });
-    
+    setFilters(initialFilters);
+    setAppliedSearchQuery('');
+    setAppliedFilters(initialFilters);
     setPage(0);
-    // הרצת חיפוש אחרי איפוס הערכים
-    setTimeout(() => {
-      fetchReferrals();
-    }, 0);
   };
-  
-  // שינוי עמוד
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-  
-  // שינוי מספר שורות בעמוד
+
+  const handleChangePage = (event, newPage) => setPage(newPage);
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
-  
-  // פתיחת טופס הוספת הפניה חדשה
+
   const handleAddReferral = () => {
     setEditingReferral(null);
     setOpenForm(true);
   };
-  
-  // פתיחת טופס עריכת הפניה קיימת
+
   const handleEditReferral = (referral) => {
     setEditingReferral(referral);
     setOpenForm(true);
   };
-  
-  // שמירת הפניה (הוספה או עדכון)
+
   const handleSaveReferral = async (referralData) => {
     setLoading(true);
-    
     try {
       if (editingReferral) {
-        // עדכון הפניה קיימת
         await api.put(`/referrals/${editingReferral.id}/`, referralData);
       } else {
-        // הוספת הפניה חדשה
         await api.post('/referrals/', referralData);
       }
-      
       setOpenForm(false);
       fetchReferrals();
     } catch (err) {
       console.error('Error saving referral:', err);
       setError('אירעה שגיאה בשמירת ההפניה');
       setLoading(false);
-      throw err; // חשוב להעביר את השגיאה הלאה כדי שהטופס יוכל להציג אותה
+      throw err;
     }
   };
-  
-  // מחיקת הפניה
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingReferralId, setDeletingReferralId] = useState(null);
-  
+
   const handleDeleteClick = (id) => {
     setDeletingReferralId(id);
     setDeleteDialogOpen(true);
   };
-  
+
   const handleConfirmDelete = async () => {
     setLoading(true);
-    
     try {
       await api.delete(`/referrals/${deletingReferralId}/`);
       setDeleteDialogOpen(false);
@@ -334,27 +276,26 @@ const ReferralsPage = () => {
       setDeleteDialogOpen(false);
     }
   };
-  
-  // ייצוא לקובץ CSV
+
   const handleExportCsv = async () => {
     try {
-      // ייצור פרמטרים דומים לחיפוש הנוכחי
       const params = {
         format: 'csv',
-        search: searchQuery,
+        search: appliedSearchQuery,
       };
-      
-      // הוספת פרמטרים של סינון
-      if (filters.status.length > 0) params.status__in = filters.status.join(',');
-      if (filters.priority.length > 0) params.priority__in = filters.priority.join(',');
-      // הוספת שאר הפרמטרים...
-      
-      const response = await api.get('/referrals/export/', { 
-        params,
-        responseType: 'blob' 
-      });
-      
-      // יצירת URL מהנתונים שהתקבלו
+      if (appliedFilters.status.length > 0)
+        params.status__in = appliedFilters.status.join(',');
+      if (appliedFilters.priority.length > 0)
+        params.priority__in = appliedFilters.priority.join(',');
+      if (appliedFilters.referral_details.length > 0)
+        params.referral_details__in = appliedFilters.referral_details.join(',');
+      if (appliedFilters.team.length > 0)
+        params.team__in = appliedFilters.team.join(',');
+      if (appliedFilters.has_documents !== '')
+        params.has_documents = appliedFilters.has_documents;
+      if (sortOrder) params.ordering = sortOrder;
+
+      const response = await api.get('/referrals/export/', { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -362,47 +303,57 @@ const ReferralsPage = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
     } catch (err) {
       console.error('Error exporting referrals:', err);
       setError('אירעה שגיאה בייצוא הנתונים');
     }
   };
-  
-  // עיצוב תאריך ושעה
+
+  // העתקת טבלה – כל שורה: מספור, שם מלא, מספר אישי והפניה מבוקשת (ללא כותרות)
+  const handleCopyTable = () => {
+    const lines = referrals.map((referral, index) => {
+      const rowNumber = index + 1 + page * rowsPerPage;
+      return `${rowNumber}, ${referral.full_name}, ${referral.personal_id}, ${referral.referral_details || ''}`;
+    });
+    const tableText = lines.join('\n');
+    navigator.clipboard.writeText(tableText);
+    alert('הנתונים הועתקו ללוח');
+  };
+
+  // שינוי מיון לפי צוות – לחיצה על כותרת "צוות" תעביר בין "team" ל-" -team"
+  const handleSortByTeam = () => {
+    setSortOrder((prev) => (prev === 'team' ? '-team' : 'team'));
+    setPage(0);
+  };
+
+  // עיצוב תאריך (למקרה שיש צורך)
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return `${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
   };
-  
+
   return (
-    <Box>
+    <Box sx={{ p: 2 }}>
+      {/* כותרת ראשית וכפתורי פעולה */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1" gutterBottom>
+        <Typography variant="h4" component="h1">
           הפניות רפואיות
         </Typography>
         <Box>
-          <Button
-            variant="outlined"
-            startIcon={<FileDownloadIcon />}
-            onClick={handleExportCsv}
-            sx={{ mr: 1 }}
-          >
+          <Button variant="outlined" startIcon={<FileDownloadIcon />} onClick={handleExportCsv} sx={{ mr: 1 }}>
             ייצוא CSV
           </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleAddReferral}
-          >
+          <Button variant="outlined" startIcon={<ContentCopyIcon />} onClick={handleCopyTable} sx={{ mr: 1 }}>
+            העתק טבלה
+          </Button>
+          <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleAddReferral}>
             הפניה חדשה
           </Button>
         </Box>
       </Box>
-      
-      {/* חיפוש וסינון */}
+
+      {/* סריקה וסינון */}
       <Paper sx={{ mb: 3, p: 2 }}>
         <Grid container spacing={2} alignItems="flex-end">
           <Grid item xs={12} sm={6} md={4}>
@@ -412,28 +363,15 @@ const ReferralsPage = () => {
               variant="outlined"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
-              }}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSearch();
-                }
-              }}
+              InputProps={{ startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} /> }}
+              onKeyPress={(e) => { if (e.key === 'Enter') handleSearch(); }}
             />
           </Grid>
-          
           <Grid item>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleSearch}
-              startIcon={<SearchIcon />}
-            >
+            <Button variant="contained" color="primary" onClick={handleSearch} startIcon={<SearchIcon />}>
               חפש
             </Button>
           </Grid>
-          
           <Grid item>
             <Button
               variant="outlined"
@@ -443,18 +381,11 @@ const ReferralsPage = () => {
               {showFilters ? 'הסתר סינון מתקדם' : 'סינון מתקדם'}
             </Button>
           </Grid>
-          
           <Grid item>
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={handleClearFilters}
-              startIcon={<ClearIcon />}
-            >
+            <Button variant="outlined" color="error" onClick={handleClearFilters} startIcon={<ClearIcon />}>
               נקה סינון
             </Button>
           </Grid>
-          
           <Grid item>
             <Tooltip title="רענן">
               <IconButton onClick={fetchReferrals}>
@@ -463,11 +394,12 @@ const ReferralsPage = () => {
             </Tooltip>
           </Grid>
         </Grid>
-        
+
         <Collapse in={showFilters}>
           <Box sx={{ mt: 3 }}>
             <Divider sx={{ mb: 3 }} />
             <Grid container spacing={2}>
+              {/* סינון לפי סטטוס */}
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth>
                   <InputLabel id="status-filter-label">סטטוס</InputLabel>
@@ -481,8 +413,8 @@ const ReferralsPage = () => {
                     renderValue={(selected) => (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {selected.map((value) => (
-                          <Chip 
-                            key={value} 
+                          <Chip
+                            key={value}
                             label={statusOptions.find(option => option.value === value)?.label || value}
                             color={statusColors[value] || 'default'}
                             size="small"
@@ -499,7 +431,8 @@ const ReferralsPage = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              
+
+              {/* סינון לפי עדיפות */}
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth>
                   <InputLabel id="priority-filter-label">עדיפות</InputLabel>
@@ -513,8 +446,8 @@ const ReferralsPage = () => {
                     renderValue={(selected) => (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {selected.map((value) => (
-                          <Chip 
-                            key={value} 
+                          <Chip
+                            key={value}
                             label={priorityOptions.find(option => option.value === value)?.label || value}
                             color={priorityColors[value] || 'default'}
                             size="small"
@@ -531,30 +464,60 @@ const ReferralsPage = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              
+
+              {/* סינון לפי "הפניה מבוקשת" */}
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth>
-                  <InputLabel id="referral-type-filter-label">סוג הפניה</InputLabel>
+                  <InputLabel id="referral-details-filter-label">הפניה מבוקשת</InputLabel>
                   <Select
-                    labelId="referral-type-filter-label"
-                    id="referral-type-filter"
+                    labelId="referral-details-filter-label"
+                    id="referral-details-filter"
                     multiple
-                    value={filters.referral_type}
-                    onChange={(e) => setFilters({ ...filters, referral_type: e.target.value })}
-                    input={<OutlinedInput label="סוג הפניה" />}
+                    value={filters.referral_details}
+                    onChange={(e) => setFilters({ ...filters, referral_details: e.target.value })}
+                    input={<OutlinedInput label="הפניה מבוקשת" />}
                     renderValue={(selected) => (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {selected.map((value) => (
-                          <Chip 
-                            key={value} 
-                            label={referralTypeOptions.find(option => option.value === value)?.label || value}
-                            size="small"
-                          />
+                          <Chip key={value} label={value} size="small" />
                         ))}
                       </Box>
                     )}
                   >
-                    {referralTypeOptions.map((option) => (
+                    {availableReferralDetails.map((detail) => (
+                      <MenuItem key={detail} value={detail}>
+                        {detail}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {/* סינון לפי צוות */}
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel id="team-filter-label">צוות</InputLabel>
+                  <Select
+                    labelId="team-filter-label"
+                    id="team-filter"
+                    multiple
+                    value={filters.team}
+                    onChange={(e) => setFilters({ ...filters, team: e.target.value })}
+                    input={<OutlinedInput label="צוות" />}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {[
+                      { value: 'חוד', label: 'חוד' },
+                      { value: 'אתק', label: 'אתק' },
+                      { value: 'רתק', label: 'רתק' },
+                      { value: 'מפלג', label: 'מפלג' },
+                    ].map((option) => (
                       <MenuItem key={option.value} value={option.value}>
                         {option.label}
                       </MenuItem>
@@ -562,7 +525,8 @@ const ReferralsPage = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              
+
+              {/* סינון לפי קיום מסמכים */}
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth>
                   <InputLabel id="has-documents-filter-label">יש מסמכים</InputLabel>
@@ -579,84 +543,40 @@ const ReferralsPage = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  label="נוצר מתאריך"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  value={filters.created_at_after}
-                  onChange={(e) => setFilters({ ...filters, created_at_after: e.target.value })}
-                />
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  label="נוצר עד תאריך"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  value={filters.created_at_before}
-                  onChange={(e) => setFilters({ ...filters, created_at_before: e.target.value })}
-                />
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  label="תור מתאריך"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  value={filters.appointment_date_after}
-                  onChange={(e) => setFilters({ ...filters, appointment_date_after: e.target.value })}
-                />
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField
-                  fullWidth
-                  label="תור עד תאריך"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  value={filters.appointment_date_before}
-                  onChange={(e) => setFilters({ ...filters, appointment_date_before: e.target.value })}
-                />
-              </Grid>
             </Grid>
           </Box>
         </Collapse>
       </Paper>
-      
-      {/* הודעת שגיאה */}
+
       {error && (
-        <Alert 
-          severity="error" 
-          sx={{ mb: 2 }}
-          action={
-            <Button color="inherit" size="small" onClick={fetchReferrals}>
-              נסה שוב
-            </Button>
-          }
+        <Alert severity="error" sx={{ mb: 2 }} 
+          action={<Button color="inherit" size="small" onClick={fetchReferrals}>נסה שוב</Button>}
         >
           {error}
         </Alert>
       )}
-      
+
       {/* טבלת הפניות */}
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>מספר</TableCell>
               <TableCell>פעולות</TableCell>
               <TableCell>שם מלא</TableCell>
               <TableCell>מספר אישי</TableCell>
-              <TableCell>צוות</TableCell>
+              <TableCell onClick={handleSortByTeam} sx={{ cursor: 'pointer' }}>
+                צוות&nbsp;
+                {sortOrder === 'team' ? (
+                  <ArrowUpwardIcon fontSize="small" />
+                ) : sortOrder === '-team' ? (
+                  <ArrowDownwardIcon fontSize="small" />
+                ) : null}
+              </TableCell>
               <TableCell>הפניה מבוקשת</TableCell>
               <TableCell>סטטוס</TableCell>
               <TableCell>עדיפות</TableCell>
               <TableCell>תאריך תור</TableCell>
-              <TableCell>עודכן לאחרונה</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -671,7 +591,7 @@ const ReferralsPage = () => {
                 <TableCell colSpan={9} align="center">
                   <Box sx={{ py: 3 }}>
                     <AssignmentIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-                    <Typography variant="h6" color="text.secondary" gutterBottom>
+                    <Typography variant="h6" color="text.secondary">
                       לא נמצאו הפניות
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -681,61 +601,52 @@ const ReferralsPage = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              referrals.map((referral) => (
-                <TableRow key={referral.id} hover>
-                  <TableCell>
-                    <Box sx={{ display: 'flex' }}>
-                      <Tooltip title="צפה בפרטים">
-                        <IconButton 
-                          color="info" 
-                          size="small"
-                          onClick={() => navigate(`/referrals/${referral.id}`)}
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="ערוך">
-                        <IconButton 
-                          color="primary" 
-                          size="small"
-                          onClick={() => handleEditReferral(referral)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="מחק">
-                        <IconButton 
-                          color="error" 
-                          size="small"
-                          onClick={() => handleDeleteClick(referral.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{referral.full_name}</TableCell>
-                  <TableCell>{referral.personal_id}</TableCell>
-                  <TableCell>{referral.team}</TableCell>
-                  <TableCell>{referral.referral_details}</TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={referral.status_display || statusOptions.find(o => o.value === referral.status)?.label || referral.status}
-                      color={statusColors[referral.status] || 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={referral.priority_display || priorityOptions.find(o => o.value === referral.priority)?.label || referral.priority}
-                      color={priorityColors[referral.priority] || 'default'}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>{formatDateTime(referral.appointment_date)}</TableCell>
-                  <TableCell>{formatDateTime(referral.updated_at)}</TableCell>
-                </TableRow>
-              ))
+              referrals.map((referral, index) => {
+                const rowNumber = index + 1 + page * rowsPerPage;
+                return (
+                  <TableRow key={referral.id} hover>
+                    <TableCell>{rowNumber}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex' }}>
+                        <Tooltip title="צפה בפרטים">
+                          <IconButton color="info" size="small" onClick={() => navigate(`/referrals/${referral.id}`)}>
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="ערוך">
+                          <IconButton color="primary" size="small" onClick={() => handleEditReferral(referral)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="מחק">
+                          <IconButton color="error" size="small" onClick={() => handleDeleteClick(referral.id)}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                    <TableCell>{referral.full_name}</TableCell>
+                    <TableCell>{referral.personal_id}</TableCell>
+                    <TableCell>{referral.team}</TableCell>
+                    <TableCell>{referral.referral_details}</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={referral.status_display || statusOptions.find(o => o.value === referral.status)?.label || referral.status}
+                        color={statusColors[referral.status] || 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={referral.priority_display || priorityOptions.find(o => o.value === referral.priority)?.label || referral.priority}
+                        color={priorityColors[referral.priority] || 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{formatDateTime(referral.appointment_date)}</TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -751,30 +662,22 @@ const ReferralsPage = () => {
           labelDisplayedRows={({ from, to, count }) => `${from}-${to} מתוך ${count}`}
         />
       </TableContainer>
-      
-      {/* דיאלוג מחיקת הפניה */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
+
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>מחיקת הפניה</DialogTitle>
         <DialogContent>
           <Typography>
-            האם אתה בטוח שברצונך למחוק את ההפניה הזו?
-            פעולה זו אינה ניתנת לביטול.
+            האם אתה בטוח שברצונך למחוק את ההפניה הזו? פעולה זו אינה ניתנת לביטול.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            ביטול
-          </Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>ביטול</Button>
           <Button onClick={handleConfirmDelete} color="error" autoFocus>
             מחק
           </Button>
         </DialogActions>
       </Dialog>
-      
-      {/* טופס הוספה/עריכת הפניה */}
+
       {openForm && (
         <ReferralForm
           open={openForm}
@@ -783,12 +686,8 @@ const ReferralsPage = () => {
           referral={editingReferral}
         />
       )}
-      
-      {/* מסך טעינה */}
-      <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        open={loading && referrals.length > 0}
-      >
+
+      <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={loading && referrals.length > 0}>
         <CircularProgress color="inherit" />
       </Backdrop>
     </Box>

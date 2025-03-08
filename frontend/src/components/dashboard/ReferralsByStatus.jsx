@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { CheckCircle, Loader, AlertTriangle, Clock, Users } from 'lucide-react';
+import { CheckCircle, Loader, AlertTriangle, Clock, Users, CalendarDays, Calendar } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config';
 import ReferralsTable from '../shared/ReferralsTable';
@@ -62,7 +62,7 @@ const ReferralsByStatus = () => {
   // רשימת הסטטוסים
   const statuses = Object.keys(data);
 
-  // הגדרות סטטוסים
+  // הגדרות סטטוסים עם תרגומים מעודכנים
   const statusConfig = {
     'appointment_scheduled': {
       icon: <CheckCircle className="h-5 w-5 text-blue-500" />,
@@ -80,7 +80,7 @@ const ReferralsByStatus = () => {
       display: 'תיאום עם חייל'
     },
     'waiting_for_medical_date': {
-      icon: <Clock className="h-5 w-5 text-purple-500" />,
+      icon: <CalendarDays className="h-5 w-5 text-purple-500" />,
       color: 'bg-purple-50 text-purple-700 border-purple-200',
       display: 'ממתין לתאריך'
     },
@@ -93,6 +93,21 @@ const ReferralsByStatus = () => {
       icon: <Clock className="h-5 w-5 text-purple-500" />,
       color: 'bg-purple-50 text-purple-700 border-purple-200',
       display: 'ממתין להפניה'
+    },
+    'completed': {
+      icon: <CheckCircle className="h-5 w-5 text-green-500" />,
+      color: 'bg-green-50 text-green-700 border-green-200',
+      display: 'הושלם'
+    },
+    'cancelled': {
+      icon: <AlertTriangle className="h-5 w-5 text-red-500" />,
+      color: 'bg-red-50 text-red-700 border-red-200',
+      display: 'בוטל'
+    },
+    'no_show': {
+      icon: <Calendar className="h-5 w-5 text-gray-500" />,
+      color: 'bg-gray-50 text-gray-700 border-gray-200',
+      display: 'לא הגיע'
     }
   };
 
@@ -121,10 +136,12 @@ const ReferralsByStatus = () => {
                     <p className="text-sm font-medium">{config.display}</p>
                     <p className="text-2xl font-bold mt-1">{statusData.total}</p>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="text-xs inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-800">
-                        <AlertTriangle className="h-3 w-3 ml-1" />
-                        {statusData.urgent} דחופים
-                      </span>
+                      {statusData.urgent > 0 && (
+                        <span className="text-xs inline-flex items-center px-2 py-1 rounded-full bg-red-100 text-red-800">
+                          <AlertTriangle className="h-3 w-3 ml-1" />
+                          {statusData.urgent} דחופים
+                        </span>
+                      )}
                       <span className="text-xs inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800">
                         <Users className="h-3 w-3 ml-1" />
                         {Object.keys(statusData.by_team || {}).length} צוותים
@@ -145,7 +162,7 @@ const ReferralsByStatus = () => {
         <div>
           <Card className="mb-6">
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">הפניות ב{data[activeStatus].display || activeStatus} לפי צוות</CardTitle>
+              <CardTitle className="text-lg">הפניות ב{statusConfig[activeStatus]?.display || data[activeStatus].display || activeStatus} לפי צוות</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -153,6 +170,12 @@ const ReferralsByStatus = () => {
                   <div key={team} className="border p-4 rounded-lg shadow-sm">
                     <h3 className="text-lg font-medium">צוות {team}</h3>
                     <p className="text-2xl font-bold mt-1">{teamData.count}</p>
+                    {teamData.urgent > 0 && (
+                      <span className="text-xs inline-flex items-center px-2 py-1 mt-2 rounded-full bg-red-100 text-red-800">
+                        <AlertTriangle className="h-3 w-3 ml-1" />
+                        {teamData.urgent} דחופים
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -161,7 +184,7 @@ const ReferralsByStatus = () => {
           
           <ReferralsTable 
             initialReferrals={data[activeStatus].referrals} 
-            title={`הפניות - ${data[activeStatus].display || activeStatus}`}
+            title={`הפניות - ${statusConfig[activeStatus]?.display || data[activeStatus].display || activeStatus}`}
             showFilters={true}
           />
         </div>

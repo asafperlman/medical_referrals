@@ -30,6 +30,7 @@ import {
   Badge,
   useTheme,
   Avatar,
+  alpha
 } from '@mui/material';
 import { 
   Assignment as AssignmentIcon,
@@ -50,6 +51,7 @@ import {
   Info as InfoIcon,
   LocationOn as LocationOnIcon,
   Notifications as NotificationsIcon,
+  Category as CategoryIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -64,6 +66,7 @@ const UpcomingAndPendingAppointments = () => {
   const [weekAppointments, setWeekAppointments] = useState([]);
   const [pendingAppointments, setPendingAppointments] = useState([]);
   const [pendingByType, setPendingByType] = useState({});
+  const [pendingByCategory, setPendingByCategory] = useState({});
   const [activeTab, setActiveTab] = useState(0);
   const [filterTeam, setFilterTeam] = useState('all');
   
@@ -114,6 +117,45 @@ const UpcomingAndPendingAppointments = () => {
         });
         
         setPendingByType(byType);
+        
+        // Organize referrals by broader categories
+        const byCategory = {
+          "פיזיותרפיה": [],
+          "רופא עור": [],
+          "רופא מומחה": [],
+          "בדיקות דם": [],
+          "דימות רפואי": [],
+          "בודדים": []
+        };
+        
+        // Categorize based on referral_details text
+        pendingData.forEach(item => {
+          const details = item.referral_details?.toLowerCase() || '';
+          
+          if (details.includes('פיזיו') || details.includes('פיסיותרפיה')) {
+            byCategory["פיזיותרפיה"].push(item);
+          } else if (details.includes('עור') || details.includes('דרמטולוג')) {
+            byCategory["רופא עור"].push(item);
+          } else if (details.includes('רופא') || details.includes('ייעוץ')) {
+            byCategory["רופא מומחה"].push(item);
+          } else if (details.includes('דם') || details.includes('מעבדה')) {
+            byCategory["בדיקות דם"].push(item);
+          } else if (details.includes('רנטגן') || details.includes('אולטרה') || 
+                    details.includes('ct') || details.includes('mri')) {
+            byCategory["דימות רפואי"].push(item);
+          } else {
+            byCategory["בודדים"].push(item);
+          }
+        });
+        
+        // Remove empty categories
+        Object.keys(byCategory).forEach(key => {
+          if (byCategory[key].length === 0) {
+            delete byCategory[key];
+          }
+        });
+        
+        setPendingByCategory(byCategory);
       }
       
       setLoading(false);
@@ -130,8 +172,12 @@ const UpcomingAndPendingAppointments = () => {
   
   const formatDate = (dateString) => {
     if (!dateString) return '';
+    
+    const days = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
     const date = new Date(dateString);
-    return date.toLocaleDateString('he-IL');
+    const dayOfWeek = days[date.getDay()];
+    
+    return `${dayOfWeek}, ${date.toLocaleDateString('he-IL')}`;
   };
   
   const formatTime = (dateString) => {
@@ -142,7 +188,10 @@ const UpcomingAndPendingAppointments = () => {
   
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
-    return `${formatDate(dateString)} ${formatTime(dateString)}`;
+    const days = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
+    const date = new Date(dateString);
+    const dayOfWeek = days[date.getDay()];
+    return `${dayOfWeek}, ${date.toLocaleDateString('he-IL')} ${formatTime(dateString)}`;
   };
   
   const getPriorityColor = (priority) => {
@@ -159,10 +208,10 @@ const UpcomingAndPendingAppointments = () => {
   const getPriorityLabel = (priority) => {
     const labels = {
       highest: 'דחוף ביותר',
-      urgent: 'דחוף',
-      high: 'גבוה',
-      medium: 'בינוני',
-      low: 'נמוך',
+      urgent: 'דחופה',
+      high: 'גבוהה',
+      medium: 'בינונית',
+      low: 'נמוכה',
       minimal: 'זניח'
     };
     return labels[priority] || priority;
@@ -177,6 +226,18 @@ const UpcomingAndPendingAppointments = () => {
     date.setHours(0, 0, 0, 0);
     
     return date.getTime() === today.getTime();
+  };
+  
+  const isTomorrow = (dateString) => {
+    if (!dateString) return false;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    
+    const date = new Date(dateString);
+    date.setHours(0, 0, 0, 0);
+    
+    return date.getTime() === tomorrow.getTime();
   };
   
   // Filter appointments based on day relative to today
@@ -385,15 +446,17 @@ const UpcomingAndPendingAppointments = () => {
                         onClick={() => navigate(`/referrals/${appointment.id}`)}
                         sx={{ 
                           py: 1.5,
-                          borderRight: isToday(appointment.appointment_date) ? '4px solid' : 'none',
-                          borderRightColor: 'primary.main',
-                          bgcolor: isToday(appointment.appointment_date) ? alpha => theme.palette.primary.light : undefined
+                          borderRight: isToday(appointment.appointment_date) ? '4px solid' : isTomorrow(appointment.appointment_date) ? '4px dashed' : 'none',
+                          borderRightColor: isToday(appointment.appointment_date) ? 'primary.main' : isTomorrow(appointment.appointment_date) ? 'info.main' : undefined,
+                          bgcolor: isToday(appointment.appointment_date) ? alpha(theme.palette.primary.light, 0.1) : 
+                                  isTomorrow(appointment.appointment_date) ? alpha(theme.palette.info.light, 0.05) : undefined
                         }}
                       >
                         <Grid container spacing={2} alignItems="center">
                           <Grid item xs={12} sm={5}>
                             <Box display="flex" alignItems="center">
-                              <Avatar sx={{ mr: 2, bgcolor: isToday(appointment.appointment_date) ? 'primary.main' : 'grey.400' }}>
+                              <Avatar sx={{ mr: 2, bgcolor: isToday(appointment.appointment_date) ? 'primary.main' : 
+                                        isTomorrow(appointment.appointment_date) ? 'info.main' : 'grey.400' }}>
                                 {appointment.full_name ? appointment.full_name.charAt(0) : 'A'}
                               </Avatar>
                               <Box>
@@ -417,6 +480,14 @@ const UpcomingAndPendingAppointments = () => {
                                 <Chip 
                                   label="היום" 
                                   color="primary" 
+                                  size="small" 
+                                  sx={{ ml: 1 }}
+                                />
+                              )}
+                              {isTomorrow(appointment.appointment_date) && (
+                                <Chip 
+                                  label="מחר" 
+                                  color="info" 
                                   size="small" 
                                   sx={{ ml: 1 }}
                                 />
@@ -604,95 +675,148 @@ const UpcomingAndPendingAppointments = () => {
       {/* Pending referrals tab */}
       {activeTab === 2 && (
         <Grid container spacing={3}>
-          {Object.keys(pendingByType).length > 0 ? (
-            <>
-              {Object.entries(pendingByType).map(([type, referrals]) => (
-                <Grid item xs={12} key={type}>
-                  <Card>
-                    <CardHeader 
-                      title={
-                        <Box display="flex" alignItems="center">
-                          <MedicalServicesIcon color="primary" sx={{ mr: 1 }} />
-                          <Typography variant="h6">
-                            {type} ({referrals.length})
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    <Divider />
-                    <CardContent sx={{ p: 0, overflow: 'auto' }}>
-                      <List disablePadding>
-                        {referrals.map((referral) => (
-                          <React.Fragment key={referral.id}>
-                            <ListItem 
-                              button 
-                              onClick={() => navigate(`/referrals/${referral.id}`)}
-                              sx={{ 
-                                py: 1.5,
-                                borderRight: referral.status === 'requires_soldier_coordination' ? '4px solid' : 'none',
-                                borderRightColor: 'warning.main'
-                              }}
-                            >
-                              <ListItemIcon>
-                                <Avatar>
-                                  {referral.full_name.charAt(0)}
-                                </Avatar>
-                              </ListItemIcon>
-                              <ListItemText
-                                primary={
-                                  <Box display="flex" alignItems="center">
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                                      {referral.full_name}
-                                    </Typography>
-                                    <Chip 
-                                      label={getPriorityLabel(referral.priority)}
-                                      color={getPriorityColor(referral.priority)}
-                                      size="small"
-                                      sx={{ ml: 1 }}
-                                    />
-                                  </Box>
-                                }
-                                secondary={
-                                  <Box>
-                                    <Typography variant="body2" color="text.secondary">
-                                      {referral.status === 'requires_soldier_coordination' 
+          {/* תצוגת סיכום של קטגוריות */}
+          <Grid item xs={12}>
+            <Card sx={{ mb: 3 }}>
+              <CardHeader 
+                title={
+                  <Box display="flex" alignItems="center">
+                    <CategoryIcon color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="h6">
+                      סיכום הפניות לפי קטגוריות
+                    </Typography>
+                  </Box>
+                }
+              />
+              <Divider />
+              <CardContent>
+                <Grid container spacing={2}>
+                  {Object.entries(pendingByCategory).map(([category, referrals]) => (
+                    <Grid item xs={6} sm={4} md={3} lg={2} key={category}>
+                      <Paper
+                        variant="outlined"
+                        sx={{ 
+                          p: 2, 
+                          textAlign: 'center',
+                          borderColor: referrals.some(r => r.priority === 'urgent' || r.priority === 'highest') ? 
+                            'error.main' : 'divider'
+                        }}
+                      >
+                        <Typography variant="h6">{referrals.length}</Typography>
+                        <Typography variant="body2">{category}</Typography>
+                        {referrals.some(r => r.priority === 'urgent' || r.priority === 'highest') && (
+                          <Chip 
+                            label="כולל דחופים" 
+                            color="error" 
+                            size="small"
+                            sx={{ mt: 1 }}
+                          />
+                        )}
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {Object.entries(pendingByCategory).length > 0 ? (
+            Object.entries(pendingByCategory).map(([category, referrals]) => (
+              <Grid item xs={12} key={category}>
+                <Card>
+                  <CardHeader 
+                    title={
+                      <Box display="flex" alignItems="center">
+                        <MedicalServicesIcon color="primary" sx={{ mr: 1 }} />
+                        <Typography variant="h6">
+                          {category} ({referrals.length})
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                  <Divider />
+                  <CardContent sx={{ p: 0, overflow: 'auto' }}>
+                    <List disablePadding>
+                      {referrals.map((referral) => (
+                        <React.Fragment key={referral.id}>
+                          <ListItem 
+                            button 
+                            onClick={() => navigate(`/referrals/${referral.id}`)}
+                            sx={{ 
+                              py: 1.5,
+                              borderRight: (referral.status === 'requires_soldier_coordination' || 
+                                          referral.priority === 'urgent' || 
+                                          referral.priority === 'highest') ? '4px solid' : 'none',
+                              borderRightColor: referral.priority === 'urgent' || referral.priority === 'highest' ? 
+                                              'error.main' : 'warning.main'
+                            }}
+                          >
+                            <ListItemIcon>
+                              <Avatar>
+                                {referral.full_name.charAt(0)}
+                              </Avatar>
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={
+                                <Box display="flex" alignItems="center">
+                                  <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                                    {referral.full_name}
+                                  </Typography>
+                                  <Chip 
+                                    label={getPriorityLabel(referral.priority)}
+                                    color={getPriorityColor(referral.priority)}
+                                    size="small"
+                                    sx={{ ml: 1 }}
+                                  />
+                                </Box>
+                              }
+                              secondary={
+                                <Box>
+                                  <Typography variant="body2" color="text.primary">
+                                    {referral.referral_details}
+                                  </Typography>
+                                  <Box display="flex" alignItems="center" mt={0.5}>
+                                    <Chip
+                                      label={referral.status === 'requires_soldier_coordination' 
                                         ? 'דרוש תיאום עם חייל' 
                                         : referral.status === 'requires_coordination' 
                                           ? 'דרוש תיאום' 
                                           : 'ממתין לתאריך'
                                       }
-                                    </Typography>
-                                    <Box display="flex" alignItems="center" mt={0.5}>
-                                      <PeopleIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                                      <Typography variant="body2" color="text.secondary">
-                                        {referral.team || '—'}
+                                      size="small"
+                                      variant="outlined"
+                                      color={referral.status === 'requires_soldier_coordination' ? 'warning' : 'info'}
+                                    />
+                                    {referral.team && (
+                                      <Typography variant="caption" sx={{ ml: 1 }}>
+                                        צוות: {referral.team}
                                       </Typography>
-                                    </Box>
+                                    )}
                                   </Box>
-                                }
-                              />
-                              <ListItemSecondaryAction>
-                                <Button 
-                                  variant="outlined" 
-                                  size="small"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/referrals/${referral.id}`);
-                                  }}
-                                >
-                                  צפה בפרטים
-                                </Button>
-                              </ListItemSecondaryAction>
-                            </ListItem>
-                            <Divider component="li" />
-                          </React.Fragment>
-                        ))}
-                      </List>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </>
+                                </Box>
+                              }
+                            />
+                            <ListItemSecondaryAction>
+                              <Button 
+                                variant="outlined" 
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/referrals/${referral.id}`);
+                                }}
+                              >
+                                צפה בפרטים
+                              </Button>
+                            </ListItemSecondaryAction>
+                          </ListItem>
+                          <Divider component="li" />
+                        </React.Fragment>
+                      ))}
+                    </List>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))
           ) : (
             <Grid item xs={12}>
               <Paper sx={{ p: 4, textAlign: 'center' }}>

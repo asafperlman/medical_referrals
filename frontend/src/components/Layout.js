@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { FitnessCenter as FitnessCenterIcon } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -26,6 +26,8 @@ import {
   Chip,
   Paper,
   alpha,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -43,7 +45,11 @@ import {
   CalendarToday as CalendarTodayIcon,
   LocalHospital as LocalHospitalIcon,
   MedicalServices as MedicalServicesIcon,
-  KeyboardArrowRight as KeyboardArrowRightIcon
+  KeyboardArrowRight as KeyboardArrowRightIcon,
+  PriorityHigh as PriorityHighIcon, 
+  Timeline as TimelineIcon,
+  AccessTime as AccessTimeIcon,
+  Category as CategoryIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { ColorModeContext } from '../App';
@@ -60,6 +66,15 @@ const Layout = () => {
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [notificationsAnchorEl, setNotificationsAnchorEl] = useState(null);
+  const [notifications, setNotifications] = useState([
+    { id: 1, text: 'תור חדש עבור "אלון כהן"', time: '09:45', isRead: false },
+    { id: 2, text: 'הפניה חדשה דורשת תיאום', time: '08:30', isRead: false },
+    { id: 3, text: 'עודכן סטטוס הפניה דחופה', time: 'אתמול, 15:20', isRead: true }
+  ]);
+  
+  // מספר התראות שלא נקראו
+  const unreadCount = notifications.filter(n => !n.isRead).length;
   
   // פונקציית פתיחה/סגירת תפריט
   const handleDrawerToggle = () => {
@@ -81,6 +96,25 @@ const Layout = () => {
     setAnchorEl(null);
   };
   
+  const handleNotificationsOpen = (event) => {
+    setNotificationsAnchorEl(event.currentTarget);
+  };
+  
+  const handleNotificationsClose = () => {
+    setNotificationsAnchorEl(null);
+  };
+  
+  const handleNotificationRead = (id) => {
+    setNotifications(notifications.map(n => 
+      n.id === id ? { ...n, isRead: true } : n
+    ));
+  };
+  
+  const handleMarkAllRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    handleNotificationsClose();
+  };
+  
   // ניווט ולחיצה שמבצעת גם סגירה של התפריט
   const handleNavigate = (path, state) => {
     navigate(path, state ? { state } : undefined);
@@ -92,16 +126,35 @@ const Layout = () => {
     logout();
   };
   
+  // עדכון כותרת עמוד על פי הנתיב הנוכחי
+  const getPageTitle = () => {
+    if (location.pathname === '/') return 'לוח בקרה';
+    if (location.pathname === '/referrals') {
+      if (location.state?.todayAppointments) return 'תורים להיום';
+      if (location.state?.openForm) return 'הוספת הפניה';
+      return 'הפניות רפואיות';
+    }
+    if (location.pathname.includes('/referrals/') && location.pathname !== '/referrals/new') return 'פרטי הפניה';
+    if (location.pathname === '/doctor-visits') return 'ביקורי רופאה';
+    if (location.pathname === '/trainings') return 'תרגולים ואימונים';
+    if (location.pathname === '/users') return 'ניהול משתמשים';
+    if (location.pathname === '/audit-logs') return 'תיעוד פעולות';
+    if (location.pathname === '/settings') return 'הגדרות מערכת';
+    if (location.pathname === '/profile') return 'פרופיל משתמש';
+    
+    return '';
+  };
+  
   const navItems = [
     { text: 'לוח בקרה', path: '/', icon: <DashboardIcon />, notification: null },
     { text: 'הפניות רפואיות', path: '/referrals', icon: <MedicalServicesIcon />, notification: null },
     { text: 'הוספת הפניה', path: '/referrals', state: { openForm: true }, icon: <AddIcon />, notification: null },
-    { text: 'תורים להיום', path: '/referrals', state: { todayAppointments: true }, icon: <CalendarTodayIcon />, notification: null },
+    { text: 'תורים להיום', path: '/referrals', state: { todayAppointments: true }, icon: <CalendarTodayIcon />, notification: unreadCount > 0 ? unreadCount : null },
+    { text: 'הפניות דחופות', path: '/referrals', state: { filterPriority: ['urgent', 'highest'] }, icon: <PriorityHighIcon />, notification: null },
+    { text: 'דורשות תיאום', path: '/referrals', state: { status: ['requires_coordination', 'requires_soldier_coordination'] }, icon: <AccessTimeIcon />, notification: null },
     { text: 'ביקורי רופאה', path: '/doctor-visits', icon: <LocalHospitalIcon />, notification: null },
     { text: 'תרגולים ואימונים', path: '/trainings', icon: <FitnessCenterIcon />, notification: null },
   ];
-  
-  
   
   // פריטי ניווט למנהלים בלבד
   const adminNavItems = [
@@ -116,6 +169,24 @@ const Layout = () => {
   
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'admin' || user?.role === 'manager';
+  
+  // בדיקה אם פריט נבחר (כולל טיפול במצבים עם state)
+  const isItemSelected = (item) => {
+    if (item.state) {
+      if (location.pathname === item.path && location.state) {
+        // בדוק התאמה בשדות ה-state
+        for (const key in item.state) {
+          if (item.state[key] !== location.state[key]) {
+            return false;
+          }
+        }
+        return true;
+      }
+      return false;
+    }
+    
+    return location.pathname === item.path;
+  };
   
   // הרכיב שמייצג את תפריט הצד (Drawer)
   const drawer = (
@@ -188,6 +259,18 @@ const Layout = () => {
           color={user?.role === 'admin' ? 'primary' : user?.role === 'manager' ? 'secondary' : 'default'}
           sx={{ mt: 0.5 }}
         />
+        
+        <FormControlLabel
+          control={
+            <Switch
+              checked={theme.palette.mode === 'dark'}
+              onChange={colorMode.toggleColorMode}
+              size="small"
+            />
+          }
+          label={theme.palette.mode === 'dark' ? "מצב לילה" : "מצב יום"}
+          sx={{ mt: 1.5, fontSize: '0.8rem' }}
+        />
       </Box>
       
       {/* תפריט ניווט ראשי */}
@@ -195,7 +278,7 @@ const Layout = () => {
       {navItems.map((item) => (
       <ListItem key={item.text} disablePadding>
       <ListItemButton
-      selected={location.pathname === item.path && !item.state}
+      selected={isItemSelected(item)}
       onClick={() => handleNavigate(item.path, item.state)}
       sx={{
         borderRadius: '0 20px 20px 0',
@@ -223,7 +306,7 @@ const Layout = () => {
       <ListItemIcon 
         sx={{ 
           minWidth: 40,
-          color: location.pathname === item.path && !item.state ? theme.palette.primary.main : 'inherit' 
+          color: isItemSelected(item) ? theme.palette.primary.main : 'inherit' 
         }}
       >
         {item.icon}
@@ -232,13 +315,13 @@ const Layout = () => {
         primary={
           <Typography 
             variant="body2" 
-            fontWeight={location.pathname === item.path && !item.state ? 600 : 400}
+            fontWeight={isItemSelected(item) ? 600 : 400}
           >
             {item.text}
           </Typography>
         } 
       />
-      {location.pathname === item.path && !item.state && (
+      {isItemSelected(item) && (
         <KeyboardArrowRightIcon 
           fontSize="small" 
           sx={{ color: theme.palette.primary.main }}
@@ -409,7 +492,10 @@ const Layout = () => {
         elevation={1}
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          mr: { md: `${drawerWidth}px` },
+          ...(theme.direction === 'rtl'
+            ? { ml: { md: `${drawerWidth}px` } }
+            : { mr: { md: `${drawerWidth}px` } }
+          ),
           backgroundColor: theme.palette.mode === 'dark' 
             ? theme.palette.background.default 
             : theme.palette.background.paper,
@@ -418,16 +504,11 @@ const Layout = () => {
           backdropFilter: 'blur(20px)',
           zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
-      >
+        >
+
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Typography variant="h6" noWrap component="div" fontWeight={600} color="primary">
-            {location.pathname === '/' && 'לוח בקרה'}
-            {location.pathname === '/referrals' && 'הפניות רפואיות'}
-            {location.pathname.includes('/referrals/') && location.pathname !== '/referrals/new' && 'פרטי הפניה'}
-            {location.pathname === '/users' && 'ניהול משתמשים'}
-            {location.pathname === '/audit-logs' && 'תיעוד פעולות'}
-            {location.pathname === '/settings' && 'הגדרות מערכת'}
-            {location.pathname === '/profile' && 'פרופיל משתמש'}
+            {getPageTitle()}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* כפתור פתיחת תפריט במובייל – מיקום בצד ימין */}
@@ -443,12 +524,79 @@ const Layout = () => {
               </IconButton>
             )}
             <Tooltip title="התראות">
-              <IconButton color="inherit" sx={{ mr: 1 }}>
-                <Badge badgeContent={3} color="error">
+              <IconButton color="inherit" sx={{ mr: 1 }} onClick={handleNotificationsOpen}>
+                <Badge badgeContent={unreadCount} color="error">
                   <NotificationsIcon />
                 </Badge>
               </IconButton>
             </Tooltip>
+            <Menu
+              anchorEl={notificationsAnchorEl}
+              open={Boolean(notificationsAnchorEl)}
+              onClose={handleNotificationsClose}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+              sx={{ mt: 1 }}
+              PaperProps={{
+                elevation: 2,
+                sx: { borderRadius: 2, minWidth: 280, maxWidth: 320 }
+              }}
+            >
+              <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle1" fontWeight="bold">התראות</Typography>
+                <Button 
+                  size="small" 
+                  variant="text" 
+                  onClick={handleMarkAllRead}
+                  disabled={unreadCount === 0}
+                >
+                  סמן הכל כנקרא
+                </Button>
+              </Box>
+              <Divider />
+              {notifications.length > 0 ? (
+                <List sx={{ p: 0 }}>
+                  {notifications.map((notification) => (
+                    <ListItem 
+                      key={notification.id} 
+                      onClick={() => {
+                        handleNotificationRead(notification.id);
+                        handleNotificationsClose();
+                      }}
+                      sx={{ 
+                        bgcolor: notification.isRead ? 'transparent' : 
+                          theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.1) : 
+                          alpha(theme.palette.primary.main, 0.05),
+                        cursor: 'pointer',
+                        '&:hover': {
+                          bgcolor: theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.15) : 
+                                                               alpha(theme.palette.primary.main, 0.1)
+                        }
+                      }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 40 }}>
+                        {notification.isRead ? 
+                          <NotificationsIcon color="disabled" fontSize="small" /> : 
+                          <NotificationsIcon color="primary" fontSize="small" />
+                        }
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={notification.text}
+                        secondary={notification.time}
+                        primaryTypographyProps={{
+                          variant: 'body2',
+                          fontWeight: notification.isRead ? 400 : 600
+                        }}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              ) : (
+                <Box sx={{ p: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">אין התראות חדשות</Typography>
+                </Box>
+              )}
+            </Menu>
             <Tooltip title={theme.palette.mode === 'dark' ? 'מצב יום' : 'מצב לילה'}>
               <IconButton onClick={colorMode.toggleColorMode} color="inherit" sx={{ mr: 1 }}>
                 {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
@@ -569,7 +717,7 @@ const Layout = () => {
         {/* תפריט למסכים גדולים */}
         <Drawer
           variant="permanent"
-          anchor="right"
+          anchor={theme.direction === 'rtl' ? 'left' : 'right'}
           sx={{
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {

@@ -30,7 +30,9 @@ import {
   TableHead,
   TableRow,
   TableCell,
-  TableBody
+  TableBody,
+  Stack,
+  Badge
 } from '@mui/material';
 import {
   Assignment as AssignmentIcon,
@@ -42,7 +44,10 @@ import {
   MedicalServices as MedicalServicesIcon,
   People as PeopleIcon,
   ArrowForward as ArrowForwardIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  LocationOn as LocationOnIcon,
+  Category as CategoryIcon,
+  PriorityHigh as PriorityHighIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -102,6 +107,7 @@ const Dashboard = () => {
   const [todayAppointments, setTodayAppointments] = useState([]);
   const [weekAppointments, setWeekAppointments] = useState([]);
   const [pendingReferrals, setPendingReferrals] = useState([]);
+  const [pendingByCategory, setPendingByCategory] = useState({});
   const [activeTab, setActiveTab] = useState(0);
   const [filterTeam, setFilterTeam] = useState('all');
 
@@ -121,9 +127,9 @@ const Dashboard = () => {
 
       const urgentResponse = await api.get('/referrals/', {
         params: {
-          priority__in: 'urgent,high',
-          status__in: 'new,in_progress,waiting_for_approval,appointment_scheduled',
-          limit: 5
+          priority__in: 'urgent,highest',
+          status__in: 'new,in_progress,waiting_for_approval,appointment_scheduled,requires_coordination,requires_soldier_coordination',
+          limit: 10
         }
       });
       setUrgentReferrals(urgentResponse.data.results || []);
@@ -152,10 +158,51 @@ const Dashboard = () => {
       const pendingResponse = await api.get('/referrals/', {
         params: {
           status__in: 'requires_coordination,requires_soldier_coordination',
-          limit: 8
+          limit: 20
         }
       });
-      setPendingReferrals(pendingResponse.data.results || []);
+      
+      const pendingData = pendingResponse.data.results || [];
+      setPendingReferrals(pendingData);
+      
+      // Organize referrals by broader categories
+      const byCategory = {
+        "פיזיותרפיה": [],
+        "רופא עור": [],
+        "רופא מומחה": [],
+        "בדיקות דם": [],
+        "דימות רפואי": [],
+        "בודדים": []
+      };
+      
+      // Categorize based on referral_details text
+      pendingData.forEach(item => {
+        const details = item.referral_details?.toLowerCase() || '';
+        
+        if (details.includes('פיזיו') || details.includes('פיסיותרפיה')) {
+          byCategory["פיזיותרפיה"].push(item);
+        } else if (details.includes('עור') || details.includes('דרמטולוג')) {
+          byCategory["רופא עור"].push(item);
+        } else if (details.includes('רופא') || details.includes('ייעוץ')) {
+          byCategory["רופא מומחה"].push(item);
+        } else if (details.includes('דם') || details.includes('מעבדה')) {
+          byCategory["בדיקות דם"].push(item);
+        } else if (details.includes('רנטגן') || details.includes('אולטרה') || 
+                  details.includes('ct') || details.includes('mri')) {
+          byCategory["דימות רפואי"].push(item);
+        } else {
+          byCategory["בודדים"].push(item);
+        }
+      });
+      
+      // Remove empty categories
+      Object.keys(byCategory).forEach(key => {
+        if (byCategory[key].length === 0) {
+          delete byCategory[key];
+        }
+      });
+      
+      setPendingByCategory(byCategory);
 
       setLoading(false);
     } catch (err) {
@@ -245,6 +292,19 @@ const Dashboard = () => {
 
   const handleTeamFilterChange = (event) => {
     setFilterTeam(event.target.value);
+  };
+
+  // עדכון תוויות עדיפות לפי הדרישות החדשות
+  const getPriorityLabel = (priority) => {
+    const labels = {
+      highest: 'דחוף ביותר',
+      urgent: 'דחופה',
+      high: 'גבוהה',
+      medium: 'בינונית',
+      low: 'נמוכה',
+      minimal: 'זניח'
+    };
+    return labels[priority] || priority;
   };
 
   // פונקציות לקבלת נתוני גרפים
@@ -356,11 +416,31 @@ const Dashboard = () => {
     return { labels, datasets: [{ label: 'סוגי הפניות', data, backgroundColor }] };
   };
 
-  // עיצוב תאריך ושעה
+  // עיצוב תאריך ושעה - כולל יום בשבוע
   const formatDateTime = (dateString) => {
     if (!dateString) return '—';
+    
+    const days = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
     const date = new Date(dateString);
-    return `${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+    const dayOfWeek = days[date.getDay()];
+    
+    return `${dayOfWeek}, ${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  
+  const formatDate = (dateString) => {
+    if (!dateString) return '—';
+    
+    const days = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
+    const date = new Date(dateString);
+    const dayOfWeek = days[date.getDay()];
+    
+    return `${dayOfWeek}, ${date.toLocaleDateString('he-IL')}`;
+  };
+  
+  const formatTime = (dateString) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
   };
 
   // תצוגות תתי-רכיבים לפי טאב
@@ -403,10 +483,10 @@ const Dashboard = () => {
                                 {appointment.full_name}
                               </Typography>
                               <Chip
-                                label={appointment.priority}
+                                label={getPriorityLabel(appointment.priority)}
                                 size="small"
                                 sx={{ ml: 1 }}
-                                color={priorityColors[appointment.priority] ? appointment.priority : 'default'}
+                                color={getPriorityColor(appointment.priority)}
                               />
                             </Box>
                           }
@@ -418,7 +498,7 @@ const Dashboard = () => {
                               <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
                                 <CalendarTodayIcon sx={{ mr: 0.5, fontSize: 14 }} />
                                 <Typography variant="caption">
-                                  {formatDateTime(appointment.appointment_date)}
+                                  {formatDate(appointment.appointment_date)}
                                 </Typography>
                                 {appointment.appointment_location && (
                                   <>
@@ -456,7 +536,7 @@ const Dashboard = () => {
           </Card>
         </Grid>
 
-        {/* הפניות הדורשות תיאום - הצגה רשמית, ללא dropdown */}
+        {/* הפניות הדורשות תיאום - סיכום לפי קטגוריות */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardHeader
@@ -472,59 +552,44 @@ const Dashboard = () => {
               }
             />
             <Divider />
-            <CardContent sx={{ p: 0 }}>
-              {pendingReferrals.length > 0 ? (
-                <List sx={{ p: 0 }}>
-                  {pendingReferrals.map(referral => (
-                    <React.Fragment key={referral.id}>
-                      <ListItem
-                        button
-                        onClick={() => navigate(`/referrals/${referral.id}`)}
-                        sx={{ borderRadius: 1 }}
+            <CardContent>
+              {Object.keys(pendingByCategory).length > 0 ? (
+                <Grid container spacing={2}>
+                  {Object.entries(pendingByCategory).map(([category, referrals]) => (
+                    <Grid item xs={6} md={4} key={category}>
+                      <Paper
+                        variant="outlined"
+                        sx={{ 
+                          p: 2,
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          borderColor: referrals.some(r => r.priority === 'urgent' || r.priority === 'highest') ? 
+                            'error.main' : 'divider',
+                          '&:hover': {
+                            boxShadow: 1
+                          }
+                        }}
+                        onClick={() => navigate('/referrals', { 
+                          state: { 
+                            status: ['requires_coordination', 'requires_soldier_coordination'],
+                            searchText: category === 'בודדים' ? '' : category
+                          } 
+                        })}
                       >
-                        <ListItemIcon>
-                          <PeopleIcon color={referral.status === 'requires_soldier_coordination' ? 'warning' : 'info'} />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Typography variant="subtitle1" fontWeight="medium">
-                                {referral.full_name}
-                              </Typography>
-                              <Chip
-                                label={referral.priority}
-                                size="small"
-                                sx={{ ml: 1 }}
-                                color={priorityColors[referral.priority] ? referral.priority : 'default'}
-                              />
-                            </Box>
-                          }
-                          secondary={
-                            <>
-                              <Typography component="span" variant="body2" color="text.primary" display="block">
-                                {referral.referral_details}
-                              </Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                                <Chip
-                                  label={referral.status === 'requires_soldier_coordination' ? 'תיאום עם חייל' : 'דרוש תיאום'}
-                                  size="small"
-                                  variant="outlined"
-                                  color={referral.status === 'requires_soldier_coordination' ? 'warning' : 'info'}
-                                />
-                                {referral.team && (
-                                  <Typography variant="caption" sx={{ ml: 1 }}>
-                                    צוות: {referral.team}
-                                  </Typography>
-                                )}
-                              </Box>
-                            </>
-                          }
-                        />
-                      </ListItem>
-                      <Divider variant="inset" component="li" />
-                    </React.Fragment>
+                        <Typography variant="h5" fontWeight="medium">{referrals.length}</Typography>
+                        <Typography variant="body1" color="text.secondary">{category}</Typography>
+                        {referrals.some(r => r.priority === 'urgent' || r.priority === 'highest') && (
+                          <Chip 
+                            label="כולל דחופים" 
+                            color="error" 
+                            size="small"
+                            sx={{ mt: 1 }}
+                          />
+                        )}
+                      </Paper>
+                    </Grid>
                   ))}
-                </List>
+                </Grid>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 3 }}>
                   <Typography color="text.secondary">
@@ -536,15 +601,20 @@ const Dashboard = () => {
           </Card>
         </Grid>
 
-        {/* הפניות דחופות */}
+        {/* הפניות דחופות - עם מידע נוסף */}
         <Grid item xs={12}>
           <Card>
             <CardHeader
-              title="הפניות דחופות"
+              title={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <PriorityHighIcon color="error" sx={{ mr: 1 }} />
+                  <Typography variant="h6">הפניות דחופות</Typography>
+                </Box>
+              }
               action={
                 <Button
                   size="small"
-                  onClick={() => navigate('/referrals', { state: { filterPriority: 'urgent' } })}
+                  onClick={() => navigate('/referrals', { state: { filterPriority: ['urgent', 'highest'] } })}
                   endIcon={<ArrowForwardIcon />}
                 >
                   כל ההפניות הדחופות
@@ -560,35 +630,90 @@ const Dashboard = () => {
                       <Card
                         variant="outlined"
                         sx={{
-                          '&:hover': { borderColor: 'primary.main', boxShadow: 1 },
+                          position: 'relative',
+                          borderColor: 'error.main',
+                          '&:hover': { boxShadow: 3 },
                           cursor: 'pointer'
                         }}
                         onClick={() => navigate(`/referrals/${referral.id}`)}
                       >
+                        <Badge 
+                          badgeContent={getPriorityLabel(referral.priority)} 
+                          color="error"
+                          sx={{ 
+                            position: 'absolute', 
+                            top: 10, 
+                            right: 10,
+                            '& .MuiBadge-badge': {
+                              fontSize: '0.7rem',
+                              height: 'auto',
+                              padding: '0 6px'
+                            }
+                          }}
+                        />
                         <CardContent>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <Typography variant="subtitle1" fontWeight="bold">
-                              {referral.full_name}
-                            </Typography>
-                            <Chip
-                              label={referral.priority}
-                              size="small"
-                              color={priorityColors[referral.priority] ? referral.priority : 'default'}
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>
+                          <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 1, pr: 7 }}>
+                            {referral.full_name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             {referral.referral_details}
                           </Typography>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                            <Chip
-                              label={referral.status === 'requires_soldier_coordination' ? 'תיאום עם חייל' : referral.status_display || referral.status}
-                              size="small"
-                              variant="outlined"
-                            />
-                            {referral.team && (
-                              <Chip label={`צוות: ${referral.team}`} size="small" variant="outlined" />
+                          
+                          <Stack direction="column" spacing={1}>
+                            {/* סטטוס */}
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Chip
+                                label={referral.status_display || referral.status}
+                                size="small"
+                                color={
+                                  referral.status === 'requires_soldier_coordination' ? 'warning' :
+                                  referral.status === 'requires_coordination' ? 'info' :
+                                  referral.status === 'appointment_scheduled' ? 'success' : 'default'
+                                }
+                                variant="outlined"
+                              />
+                            </Box>
+                            
+                            {/* מידע על התור אם קיים */}
+                            {referral.appointment_date ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                <CalendarTodayIcon fontSize="small" sx={{ mr: 1, color: 'success.main' }} />
+                                <Typography variant="body2" color="success.main">
+                                  נקבע תור: {formatDateTime(referral.appointment_date)}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                <AccessTimeIcon fontSize="small" sx={{ mr: 1, color: 'warning.main' }} />
+                                <Typography variant="body2" color="warning.main">
+                                  {referral.status === 'requires_coordination' ? 
+                                    'דרוש תיאום תור' : 
+                                    referral.status === 'requires_soldier_coordination' ?
+                                    'דרוש תיאום עם החייל' : 'טרם נקבע תור'}
+                                </Typography>
+                              </Box>
                             )}
-                          </Box>
+                            
+                            {/* מיקום אם קיים */}
+                            {referral.appointment_location && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                                <LocationOnIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {referral.appointment_location}
+                                </Typography>
+                              </Box>
+                            )}
+                            
+                            {/* פרטי צוות */}
+                            {referral.team && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                                <PeopleIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  צוות: {referral.team}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Stack>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -636,10 +761,10 @@ const Dashboard = () => {
                                 {appointment.full_name}
                               </Typography>
                               <Chip
-                                label={appointment.priority_display || appointment.priority}
+                                label={getPriorityLabel(appointment.priority)}
                                 size="small"
                                 sx={{ ml: 1 }}
-                                color={priorityColors[appointment.priority] ? appointment.priority : 'default'}
+                                color={getPriorityColor(appointment.priority)}
                               />
                             </Box>
                           }
@@ -648,7 +773,7 @@ const Dashboard = () => {
                               <Typography component="span" variant="body2" color="text.primary">
                                 {appointment.referral_details}
                               </Typography>
-                              {appointment.appointment_date && ` — ${new Date(appointment.appointment_date).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
+                              {appointment.appointment_date && ` — ${formatTime(appointment.appointment_date)}`}
                               {appointment.appointment_location && ` — ${appointment.appointment_location}`}
                             </>
                           }
@@ -817,6 +942,18 @@ const Dashboard = () => {
       </Grid>
     </Box>
   );
+  
+  // פונקציה לקבלת צבע הצ'יפ
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case 'highest': return 'error';
+      case 'urgent': return 'error';
+      case 'high': return 'warning';
+      case 'medium': return 'info';
+      case 'low': return 'success';
+      default: return 'default';
+    }
+  };
 
   if (loading) {
     return (
@@ -918,7 +1055,7 @@ const Dashboard = () => {
           variant="outlined"
           color="error"
           startIcon={<WarningIcon />}
-          onClick={() => navigate('/referrals', { state: { filterPriority: 'urgent' } })}
+          onClick={() => navigate('/referrals', { state: { filterPriority: ['urgent', 'highest'] } })}
         >
           הפניות דחופות ({stats?.urgent_referrals || '—'})
         </Button>
