@@ -1,4 +1,5 @@
 import React, { useState, useContext } from 'react';
+import { FitnessCenter as FitnessCenterIcon } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -95,8 +96,12 @@ const Layout = () => {
     { text: 'לוח בקרה', path: '/', icon: <DashboardIcon />, notification: null },
     { text: 'הפניות רפואיות', path: '/referrals', icon: <MedicalServicesIcon />, notification: null },
     { text: 'הוספת הפניה', path: '/referrals', state: { openForm: true }, icon: <AddIcon />, notification: null },
-    { text: 'תורים להיום', path: '/referrals', state: { todayAppointments: true }, icon: <CalendarTodayIcon />, notification: 3 },
+    { text: 'תורים להיום', path: '/referrals', state: { todayAppointments: true }, icon: <CalendarTodayIcon />, notification: null },
+    { text: 'ביקורי רופאה', path: '/doctor-visits', icon: <LocalHospitalIcon />, notification: null },
+    { text: 'תרגולים ואימונים', path: '/trainings', icon: <FitnessCenterIcon />, notification: null },
   ];
+  
+  
   
   // פריטי ניווט למנהלים בלבד
   const adminNavItems = [
@@ -187,68 +192,68 @@ const Layout = () => {
       
       {/* תפריט ניווט ראשי */}
       <List sx={{ pt: 1, pb: isMobile ? 10 : 0 }}>
-        {navItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path && !item.state}
-              onClick={() => handleNavigate(item.path, item.state)}
-              sx={{
-                borderRadius: '0 20px 20px 0',
-                mr: 1,
-                transition: 'all 0.2s',
-                position: 'relative',
-                '&.Mui-selected': {
-                  backgroundColor: theme.palette.mode === 'dark' 
-                    ? alpha(theme.palette.primary.main, 0.2)
-                    : alpha(theme.palette.primary.main, 0.1),
-                  borderLeft: `4px solid ${theme.palette.primary.main}`,
-                  '&:hover': {
-                    backgroundColor: theme.palette.mode === 'dark' 
-                      ? alpha(theme.palette.primary.main, 0.3)
-                      : alpha(theme.palette.primary.main, 0.2),
-                  }
-                },
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark' 
-                    ? alpha(theme.palette.primary.main, 0.1)
-                    : alpha(theme.palette.background.paper, 0.8),
-                }
-              }}
-            >
-              <ListItemIcon 
-                sx={{ 
-                  minWidth: 40,
-                  color: location.pathname === item.path && !item.state ? theme.palette.primary.main : 'inherit' 
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText 
-                primary={
-                  <Typography 
-                    variant="body2" 
-                    fontWeight={location.pathname === item.path && !item.state ? 600 : 400}
-                  >
-                    {item.text}
-                  </Typography>
-                } 
-              />
-              {location.pathname === item.path && !item.state && (
-                <KeyboardArrowRightIcon 
-                  fontSize="small" 
-                  sx={{ color: theme.palette.primary.main }}
-                />
-              )}
-              {item.notification && (
-                <Badge 
-                  badgeContent={item.notification} 
-                  color="error" 
-                  sx={{ ml: 1 }}
-                />
-              )}
-            </ListItemButton>
-          </ListItem>
-        ))}
+      {navItems.map((item) => (
+      <ListItem key={item.text} disablePadding>
+      <ListItemButton
+      selected={location.pathname === item.path && !item.state}
+      onClick={() => handleNavigate(item.path, item.state)}
+      sx={{
+        borderRadius: '0 20px 20px 0',
+        mr: 1,
+        transition: 'all 0.2s',
+        position: 'relative',
+        '&.Mui-selected': {
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.primary.main, 0.2)
+            : alpha(theme.palette.primary.main, 0.1),
+          borderLeft: `4px solid ${theme.palette.primary.main}`,
+          '&:hover': {
+            backgroundColor: theme.palette.mode === 'dark' 
+              ? alpha(theme.palette.primary.main, 0.3)
+              : alpha(theme.palette.primary.main, 0.2),
+          }
+        },
+        '&:hover': {
+          backgroundColor: theme.palette.mode === 'dark' 
+            ? alpha(theme.palette.primary.main, 0.1)
+            : alpha(theme.palette.background.paper, 0.8),
+        }
+      }}
+    >
+      <ListItemIcon 
+        sx={{ 
+          minWidth: 40,
+          color: location.pathname === item.path && !item.state ? theme.palette.primary.main : 'inherit' 
+        }}
+      >
+        {item.icon}
+      </ListItemIcon>
+      <ListItemText 
+        primary={
+          <Typography 
+            variant="body2" 
+            fontWeight={location.pathname === item.path && !item.state ? 600 : 400}
+          >
+            {item.text}
+          </Typography>
+        } 
+      />
+      {location.pathname === item.path && !item.state && (
+        <KeyboardArrowRightIcon 
+          fontSize="small" 
+          sx={{ color: theme.palette.primary.main }}
+        />
+      )}
+      {item.notification && (
+        <Badge 
+          badgeContent={item.notification} 
+          color="error" 
+          sx={{ ml: 1 }}
+        />
+      )}
+    </ListItemButton>
+  </ListItem>
+      ))}
       </List>
       
       {isManager && (
