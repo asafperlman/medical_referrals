@@ -52,7 +52,6 @@ import {
   Check as CheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { FitnessCenter as FitnessCenterIcon } from '@mui/icons-material';
 
 // רכיב עמוד ניהול תרגילים ואימונים
 const TrainingManagement = () => {

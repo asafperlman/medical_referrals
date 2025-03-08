@@ -1,13 +1,13 @@
 // medical-referrals/frontend/src/pages/NotFound.js
 
 import React from 'react';
-import { Box, Typography, Button, Paper, useTheme } from '@mui/material';
+import { Box, Typography, Button, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { Home as HomeIcon } from '@mui/icons-material';
 
 const NotFound = () => {
   const navigate = useNavigate();
-  const theme = useTheme();
+  
   
   return (
     <Box

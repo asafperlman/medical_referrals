@@ -31,7 +31,7 @@ import {
   CircularProgress,
   Alert,
   Backdrop,
-  FormHelperText,
+  
   Divider,
   Collapse,
 } from '@mui/material';
@@ -41,17 +41,13 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   Clear as ClearIcon,
-  Visibility as VisibilityIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
   MedicalServices as MedicalServicesIcon,
-  Person as PersonIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../context/AuthContext';
 
 const DoctorVisits = () => {
-  const { api } = useAuth();
   
   // מצבים עבור הטבלה
   const [visits, setVisits] = useState([]);

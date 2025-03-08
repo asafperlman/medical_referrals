@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "date-fns": "^2.30.0"
+    "date-fns": "^2.30.0",
+    "stylis-plugin-rtl": "^2.1.1"
   }
 }

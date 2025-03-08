@@ -41,7 +41,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
-  const { api, user: currentUser, logout } = useAuth();
+  const { api, user: currentUser } = useAuth();
   const theme = useTheme();
   
   // מצבים לפרופיל
