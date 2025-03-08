@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'referrals',
     'audit',
     'api',
+    'training',
 ]
 
 MIDDLEWARE = [
