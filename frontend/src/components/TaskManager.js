@@ -30,6 +30,8 @@ import {
   CircularProgress,
   Collapse,
   Fab,
+  FormControlLabel,
+  Badge,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,23 +41,24 @@ import {
   RadioButtonUnchecked as UncheckedIcon,
   Assignment as AssignmentIcon,
   EventAvailable as EventAvailableIcon,
-  CalendarMonth as CalendarMonthIcon,
   PersonOutline as PersonOutlineIcon,
   LocalHospital as LocalHospitalIcon,
   Healing as HealingIcon,
+  FilterList as FilterListIcon,
+  AccessTime as AccessTimeIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   Refresh as RefreshIcon,
-  FilterList as FilterListIcon,
-  AccessTime as AccessTimeIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
+  KeyboardArrowUp as KeyboardArrowUpIcon,
+  Flag as FlagIcon,
+  FormatListBulleted as FormatListBulletedIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
-// רכיב משימות לשימוש בכל מקום באפליקציה
+// Task manager component for use anywhere in the application
 const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false }) => {
-  const { api } = useAuth();
-  
-  // מצבים
+  // State
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,7 +69,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   
-  // מצב הטופס
+  // Form state
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -77,25 +80,25 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     related_soldier: '',
   });
   
-  // מצב עריכה
+  // Edit state
   const [editingTask, setEditingTask] = useState(null);
   
-  // מצב מחיקה
+  // Delete state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskIdToDelete, setTaskIdToDelete] = useState(null);
   
-  // טעינת משימות
+  // Load tasks
   useEffect(() => {
     const fetchTasks = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        // בפרויקט אמיתי היינו מבצעים קריאת API לשרת
+        // In a real project we would make an API call to the server
         // const response = await api.get('/tasks/');
         // setTasks(response.data);
         
-        // נשתמש בנתונים לדוגמה
+        // Using sample data
         const mockTasks = [
           {
             id: 1,
@@ -167,34 +170,34 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     fetchTasks();
   }, []);
   
-  // סינון משימות
+  // Filter tasks
   useEffect(() => {
     let filtered = [...tasks];
     
-    // סינון לפי סטטוס
+    // Filter by status
     if (filterStatus === 'completed') {
       filtered = filtered.filter(task => task.completed);
     } else if (filterStatus === 'pending') {
       filtered = filtered.filter(task => !task.completed);
     }
     
-    // סינון לפי עדיפות
+    // Filter by priority
     if (filterPriority !== 'all') {
       filtered = filtered.filter(task => task.priority === filterPriority);
     }
     
-    // סינון לפי קטגוריה
+    // Filter by category
     if (filterCategory !== 'all') {
       filtered = filtered.filter(task => task.category === filterCategory);
     }
     
-    // מיון לפי תאריך ועדיפות
+    // Sort by completion, due date, and priority
     filtered.sort((a, b) => {
-      // קודם מיון לפי השלמה
+      // First sort by completion
       if (a.completed && !b.completed) return 1;
       if (!a.completed && b.completed) return -1;
       
-      // אחר כך לפי תאריך יעד
+      // Then by due date
       if (!a.completed) {
         const dateA = new Date(a.due_date);
         const dateB = new Date(b.due_date);
@@ -203,7 +206,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
         if (dateA > dateB) return 1;
       }
       
-      // אחר כך לפי עדיפות
+      // Then by priority
       const priorityOrder = { high: 0, medium: 1, low: 2 };
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
@@ -211,7 +214,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     setFilteredTasks(filtered);
   }, [tasks, filterStatus, filterPriority, filterCategory]);
   
-  // פתיחת טופס הוספה
+  // Open add form
   const handleAddTask = () => {
     setEditingTask(null);
     setFormData({
@@ -226,22 +229,22 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     setOpenForm(true);
   };
   
-  // פתיחת טופס עריכה
+  // Open edit form
   const handleEditTask = (task) => {
     setEditingTask(task);
     setFormData({
       title: task.title,
-      description: task.description,
+      description: task.description || '',
       category: task.category,
       priority: task.priority,
-      due_date: task.due_date,
+      due_date: task.due_date || '',
       completed: task.completed,
-      related_soldier: task.related_soldier,
+      related_soldier: task.related_soldier || '',
     });
     setOpenForm(true);
   };
   
-  // שינוי בטופס
+  // Form change handler
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({
@@ -250,32 +253,32 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     });
   };
   
-  // שמירת משימה
+  // Save task
   const handleSaveTask = async () => {
     if (!formData.title) {
-      return; // אין לשמור משימה ללא כותרת
+      return; // Don't save task without title
     }
     
     try {
       setLoading(true);
       
       if (editingTask) {
-        // עדכון משימה קיימת
-        // בפרויקט אמיתי:
+        // Update existing task
+        // In a real project:
         // await api.put(`/tasks/${editingTask.id}/`, formData);
         
-        // עדכון מקומי:
+        // Local update:
         const updatedTasks = tasks.map(task =>
           task.id === editingTask.id ? { ...task, ...formData } : task
         );
         setTasks(updatedTasks);
       } else {
-        // יצירת משימה חדשה
-        // בפרויקט אמיתי:
+        // Create new task
+        // In a real project:
         // const response = await api.post('/tasks/', formData);
         // const newTask = response.data;
         
-        // יצירה מקומית:
+        // Local creation:
         const newTask = {
           id: Math.max(0, ...tasks.map(t => t.id)) + 1,
           ...formData,
@@ -294,21 +297,21 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // טיפול במחיקת משימה
+  // Handle delete click
   const handleDeleteClick = (taskId) => {
     setTaskIdToDelete(taskId);
     setDeleteDialogOpen(true);
   };
   
-  // מחיקת משימה
+  // Delete task
   const handleConfirmDelete = async () => {
     try {
       setLoading(true);
       
-      // בפרויקט אמיתי:
+      // In a real project:
       // await api.delete(`/tasks/${taskIdToDelete}/`);
       
-      // מחיקה מקומית:
+      // Local deletion:
       const updatedTasks = tasks.filter(task => task.id !== taskIdToDelete);
       setTasks(updatedTasks);
       
@@ -321,20 +324,20 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // שינוי סטטוס משימה (השלמה/ביטול השלמה)
+  // Toggle task completion
   const handleToggleComplete = async (taskId) => {
     try {
-      // מצא את המשימה הרלוונטית
+      // Find the relevant task
       const taskToUpdate = tasks.find(task => task.id === taskId);
       if (!taskToUpdate) return;
       
-      // שנה את הסטטוס
+      // Toggle status
       const updatedTask = { ...taskToUpdate, completed: !taskToUpdate.completed };
       
-      // בפרויקט אמיתי:
+      // In a real project:
       // await api.patch(`/tasks/${taskId}/`, { completed: updatedTask.completed });
       
-      // עדכון מקומי:
+      // Local update:
       const updatedTasks = tasks.map(task =>
         task.id === taskId ? updatedTask : task
       );
@@ -346,7 +349,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // פונקציית עזר לקבלת צבע לפי עדיפות
+  // Get priority color
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'high': return 'error';
@@ -356,7 +359,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // פונקציית עזר לקבלת שם עדיפות בעברית
+  // Get priority label
   const getPriorityLabel = (priority) => {
     switch (priority) {
       case 'high': return 'גבוהה';
@@ -366,7 +369,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // פונקציית עזר לקבלת אייקון לפי קטגוריה
+  // Get category icon
   const getCategoryIcon = (category) => {
     switch (category) {
       case 'medical':
@@ -382,7 +385,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // פונקציית עזר לקבלת שם קטגוריה בעברית
+  // Get category label
   const getCategoryLabel = (category) => {
     switch (category) {
       case 'medical': return 'רפואי';
@@ -394,7 +397,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     }
   };
   
-  // פורמט תאריך
+  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return '';
     
@@ -402,7 +405,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     return date.toLocaleDateString('he-IL');
   };
   
-  // בדיקה האם משימה באיחור
+  // Check if task is overdue
   const isOverdue = (task) => {
     if (task.completed || !task.due_date) return false;
     
@@ -415,9 +418,22 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
     return dueDate < today;
   };
   
+  // Calculate task statistics
+  const getTaskStats = () => {
+    const total = tasks.length;
+    const completed = tasks.filter(task => task.completed).length;
+    const pending = total - completed;
+    const overdue = tasks.filter(task => isOverdue(task)).length;
+    const highPriority = tasks.filter(task => !task.completed && task.priority === 'high').length;
+    
+    return { total, completed, pending, overdue, highPriority };
+  };
+  
+  const taskStats = getTaskStats();
+  
   return (
     <Box sx={{ width: '100%' }}>
-      {/* כותרת ופעולות (במצב עצמאי) */}
+      {/* Title and actions (in standalone mode) */}
       {standalone && (
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
           <Typography variant="h4" component="h1" gutterBottom>
@@ -434,7 +450,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
         </Box>
       )}
       
-      {/* פאנל מרכזי */}
+      {/* Main panel */}
       <Paper
         elevation={standalone ? 1 : 0}
         sx={{ 
@@ -442,7 +458,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
           background: standalone ? undefined : 'transparent'
         }}
       >
-        {/* כותרת (לא במצב עצמאי) */}
+        {/* Title (not in standalone mode) */}
         {!standalone && showTitle && (
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
             <Typography variant="h6" component="h2" sx={{ display: 'flex', alignItems: 'center' }}>
@@ -466,7 +482,10 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
                 </IconButton>
               </Tooltip>
               <Tooltip title="רענן">
-                <IconButton size="small" onClick={() => console.log('Refresh')}>
+                <IconButton 
+                  size="small" 
+                  onClick={() => setFilteredTasks([...tasks])}
+                >
                   <RefreshIcon />
                 </IconButton>
               </Tooltip>
@@ -474,7 +493,77 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
           </Box>
         )}
         
-        {/* אפשרויות סינון */}
+        {/* Task stats */}
+        {standalone && (
+          <Box mb={3}>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 1.5, 
+                    textAlign: 'center',
+                    bgcolor: 'primary.light',
+                    color: 'primary.contrastText',
+                    borderRadius: 2
+                  }}
+                >
+                  <Typography variant="h5">{taskStats.total}</Typography>
+                  <Typography variant="body2">סה"כ משימות</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 1.5, 
+                    textAlign: 'center',
+                    bgcolor: 'success.light',
+                    color: 'success.contrastText',
+                    borderRadius: 2
+                  }}
+                >
+                  <Typography variant="h5">{taskStats.completed}</Typography>
+                  <Typography variant="body2">הושלמו</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 1.5, 
+                    textAlign: 'center',
+                    bgcolor: 'warning.light',
+                    color: 'warning.contrastText',
+                    borderRadius: 2
+                  }}
+                >
+                  <Typography variant="h5">{taskStats.pending}</Typography>
+                  <Typography variant="body2">ממתינות</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    p: 1.5, 
+                    textAlign: 'center',
+                    bgcolor: 'error.light',
+                    color: 'error.contrastText',
+                    borderRadius: 2
+                  }}
+                >
+                  <Badge badgeContent={taskStats.overdue} color="error">
+                    <Typography variant="h5">{taskStats.highPriority}</Typography>
+                  </Badge>
+                  <Typography variant="body2">דחופות</Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+        
+        {/* Filter options */}
         <Collapse in={showFilters}>
           <Box sx={{ mb: 2, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
             <Grid container spacing={2}>
@@ -530,14 +619,14 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
           </Box>
         </Collapse>
         
-        {/* הודעת שגיאה */}
+        {/* Error message */}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
           </Alert>
         )}
         
-        {/* רשימת משימות */}
+        {/* Task list */}
         {loading && filteredTasks.length === 0 ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
             <CircularProgress />
@@ -702,7 +791,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
         )}
       </Paper>
       
-      {/* כפתור צף במצב עצמאי */}
+      {/* Floating button in standalone mode */}
       {standalone && (
         <Fab
           color="primary"
@@ -718,7 +807,7 @@ const TaskManager = ({ showTitle = true, maxHeight = null, standalone = false })
         </Fab>
       )}
       
-      {/* טופס הוספה/עריכה */}
+      {/* Add/Edit form */}
       <Dialog
         open={openForm}
         onClose={() => setOpenForm(false)}

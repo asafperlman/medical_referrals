@@ -1,5 +1,3 @@
-// medical-referrals/frontend/src/components/Layout.js
-
 import React, { useState, useContext } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -44,7 +42,7 @@ import {
   CalendarToday as CalendarTodayIcon,
   LocalHospital as LocalHospitalIcon,
   MedicalServices as MedicalServicesIcon,
-  KeyboardArrowRight as KeyboardArrowRightIcon,
+  KeyboardArrowRight as KeyboardArrowRightIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { ColorModeContext } from '../App';
@@ -62,11 +60,12 @@ const Layout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   
-  // תיקון: סגירת תפריט בלחיצה על כל פריט
+  // פונקציית פתיחה/סגירת תפריט
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
   
+  // סגירת התפריט במובייל בעת ניווט
   const handleCloseDrawer = () => {
     if (isMobile) {
       setMobileOpen(false);
@@ -81,10 +80,10 @@ const Layout = () => {
     setAnchorEl(null);
   };
   
-  // תיקון: עדכון פונקציית ניווט לסגירת התפריט לאחר לחיצה
+  // ניווט ולחיצה שמבצעת גם סגירה של התפריט
   const handleNavigate = (path, state) => {
     navigate(path, state ? { state } : undefined);
-    handleCloseDrawer(); // חשוב - זה סוגר את התפריט בלחיצה
+    handleCloseDrawer();
   };
   
   const handleLogout = () => {
@@ -113,7 +112,7 @@ const Layout = () => {
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'admin' || user?.role === 'manager';
   
-  // שיפור העיצוב של התפריט
+  // הרכיב שמייצג את תפריט הצד (Drawer)
   const drawer = (
     <div>
       {/* כותרת התפריט עם כפתור סגירה במובייל */}
@@ -195,14 +194,14 @@ const Layout = () => {
               onClick={() => handleNavigate(item.path, item.state)}
               sx={{
                 borderRadius: '0 20px 20px 0',
-                ml: 1,
+                mr: 1,
                 transition: 'all 0.2s',
                 position: 'relative',
                 '&.Mui-selected': {
                   backgroundColor: theme.palette.mode === 'dark' 
                     ? alpha(theme.palette.primary.main, 0.2)
                     : alpha(theme.palette.primary.main, 0.1),
-                  borderRight: `4px solid ${theme.palette.primary.main}`,
+                  borderLeft: `4px solid ${theme.palette.primary.main}`,
                   '&:hover': {
                     backgroundColor: theme.palette.mode === 'dark' 
                       ? alpha(theme.palette.primary.main, 0.3)
@@ -244,7 +243,7 @@ const Layout = () => {
                 <Badge 
                   badgeContent={item.notification} 
                   color="error" 
-                  sx={{ mr: 1 }}
+                  sx={{ ml: 1 }}
                 />
               )}
             </ListItemButton>
@@ -266,13 +265,13 @@ const Layout = () => {
                   onClick={() => handleNavigate(item.path)}
                   sx={{
                     borderRadius: '0 20px 20px 0',
-                    ml: 1,
+                    mr: 1,
                     transition: 'all 0.2s',
                     '&.Mui-selected': {
                       backgroundColor: theme.palette.mode === 'dark' 
                         ? alpha(theme.palette.secondary.main, 0.2)
                         : alpha(theme.palette.secondary.main, 0.1),
-                      borderRight: `4px solid ${theme.palette.secondary.main}`,
+                      borderLeft: `4px solid ${theme.palette.secondary.main}`,
                       '&:hover': {
                         backgroundColor: theme.palette.mode === 'dark' 
                           ? alpha(theme.palette.secondary.main, 0.3)
@@ -326,13 +325,13 @@ const Layout = () => {
                   onClick={() => handleNavigate(item.path)}
                   sx={{
                     borderRadius: '0 20px 20px 0',
-                    ml: 1,
+                    mr: 1,
                     transition: 'all 0.2s',
                     '&.Mui-selected': {
                       backgroundColor: theme.palette.mode === 'dark' 
                         ? alpha(theme.palette.warning.main, 0.2)
                         : alpha(theme.palette.warning.main, 0.1),
-                      borderRight: `4px solid ${theme.palette.warning.main}`,
+                      borderLeft: `4px solid ${theme.palette.warning.main}`,
                       '&:hover': {
                         backgroundColor: theme.palette.mode === 'dark' 
                           ? alpha(theme.palette.warning.main, 0.3)
@@ -395,17 +394,17 @@ const Layout = () => {
       </Box>
     </div>
   );
-
+  
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
-      {/* שיפור העיצוב של ה-AppBar */}
+      {/* AppBar עם מרווחי צד ימין (במקום שמאל) בהתאם למיקום התפריט */}
       <AppBar
         position="fixed"
         elevation={1}
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
-          mr: { md: `${drawerWidth}px` }, // התפריט מימין
+          mr: { md: `${drawerWidth}px` },
           backgroundColor: theme.palette.mode === 'dark' 
             ? theme.palette.background.default 
             : theme.palette.background.paper,
@@ -416,30 +415,28 @@ const Layout = () => {
         }}
       >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton
-              color="inherit"
-              aria-label="פתח תפריט"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ display: { md: 'none' }, ml: 1 }}
-            >
-              <MenuIcon />
-            </IconButton>
-            
-            <Typography variant="h6" noWrap component="div" fontWeight={600} color="primary">
-              {location.pathname === '/' && 'לוח בקרה'}
-              {location.pathname === '/referrals' && 'הפניות רפואיות'}
-              {location.pathname.includes('/referrals/') && location.pathname !== '/referrals/new' && 'פרטי הפניה'}
-              {location.pathname === '/users' && 'ניהול משתמשים'}
-              {location.pathname === '/audit-logs' && 'תיעוד פעולות'}
-              {location.pathname === '/settings' && 'הגדרות מערכת'}
-              {location.pathname === '/profile' && 'פרופיל משתמש'}
-            </Typography>
-          </Box>
-          
+          <Typography variant="h6" noWrap component="div" fontWeight={600} color="primary">
+            {location.pathname === '/' && 'לוח בקרה'}
+            {location.pathname === '/referrals' && 'הפניות רפואיות'}
+            {location.pathname.includes('/referrals/') && location.pathname !== '/referrals/new' && 'פרטי הפניה'}
+            {location.pathname === '/users' && 'ניהול משתמשים'}
+            {location.pathname === '/audit-logs' && 'תיעוד פעולות'}
+            {location.pathname === '/settings' && 'הגדרות מערכת'}
+            {location.pathname === '/profile' && 'פרופיל משתמש'}
+          </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* התראות */}
+            {/* כפתור פתיחת תפריט במובייל – מיקום בצד ימין */}
+            {isMobile && (
+              <IconButton
+                color="inherit"
+                aria-label="פתח תפריט"
+                edge="end"
+                onClick={handleDrawerToggle}
+                sx={{ mr: 1 }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
             <Tooltip title="התראות">
               <IconButton color="inherit" sx={{ mr: 1 }}>
                 <Badge badgeContent={3} color="error">
@@ -447,14 +444,11 @@ const Layout = () => {
                 </Badge>
               </IconButton>
             </Tooltip>
-            
-            {/* כפתור החלפת ערכת צבעים */}
             <Tooltip title={theme.palette.mode === 'dark' ? 'מצב יום' : 'מצב לילה'}>
               <IconButton onClick={colorMode.toggleColorMode} color="inherit" sx={{ mr: 1 }}>
                 {theme.palette.mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
               </IconButton>
             </Tooltip>
-            
             {/* פרופיל משתמש */}
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Button
@@ -480,13 +474,14 @@ const Layout = () => {
                 }
               >
                 {!isMobile && (
-                  <Box sx={{ textAlign: 'right', ml: 1 }}>
+                  <Box sx={{ textAlign: 'right', mr: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{user?.full_name}</Typography>
-                    <Typography variant="caption" color="text.secondary">{user?.role === 'admin' ? 'מנהל מערכת' : user?.role === 'manager' ? 'מנהל' : 'משתמש'}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {user?.role === 'admin' ? 'מנהל מערכת' : user?.role === 'manager' ? 'מנהל' : 'משתמש'}
+                    </Typography>
                   </Box>
                 )}
               </Button>
-              
               <Menu
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
@@ -536,42 +531,47 @@ const Layout = () => {
         </Toolbar>
       </AppBar>
       
-      {/* תפריט צידי - מיקום מימין */}
+      {/* תפריט ניווט צדדי – מוגדר להיות מימין */}
       <Box
         component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+        sx={{ 
+          width: { md: drawerWidth }, 
+          flexShrink: { md: 0 }
+        }}
         aria-label="תפריט ניווט"
       >
-        {/* תפריט למובייל */}
+        {/* תפריט מובייל */}
         <Drawer
           variant="temporary"
-          anchor="right" // קביעת התפריט לצד ימין
+          anchor="right"
           open={mobileOpen}
           onClose={handleCloseDrawer}
           ModalProps={{
-            keepMounted: true, // טוב יותר לביצועים בנייד
+            keepMounted: true,
           }}
           sx={{
             display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
+              left: 'auto'
             },
           }}
         >
           {drawer}
         </Drawer>
         
-        {/* תפריט למסך רחב */}
+        {/* תפריט למסכים גדולים */}
         <Drawer
           variant="permanent"
-          anchor="right" // קביעת התפריט לצד ימין
+          anchor="right"
           sx={{
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': {
               boxSizing: 'border-box',
               width: drawerWidth,
               borderLeft: 'none',
+              left: 'auto',
               backgroundImage: theme.palette.mode === 'dark' 
                 ? 'linear-gradient(to bottom, rgba(10, 10, 10, 0.8), rgba(0, 0, 0, 0.9))'
                 : 'linear-gradient(to bottom, rgba(250, 250, 253, 0.8), rgba(244, 245, 250, 0.9))',
@@ -602,7 +602,6 @@ const Layout = () => {
         }}
       >
         <Toolbar />
-        {/* אזור התוכן הראשי */}
         <Paper 
           elevation={0} 
           sx={{ 
@@ -612,7 +611,7 @@ const Layout = () => {
               ? alpha(theme.palette.background.paper, 0.5)
               : alpha(theme.palette.background.paper, 0.7),
             backdropFilter: 'blur(10px)',
-            minHeight: 'calc(100vh - 110px)', // גובה מינימלי לתוכן
+            minHeight: 'calc(100vh - 110px)',
           }}
         >
           <Outlet />

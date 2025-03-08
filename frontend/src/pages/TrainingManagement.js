@@ -1,5 +1,3 @@
-// frontend/src/pages/TrainingManagement.js
-
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -40,64 +38,49 @@ import {
   Alert,
   CircularProgress,
   Backdrop,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  FilterList as FilterListIcon,
   Refresh as RefreshIcon,
-  DateRange as DateRangeIcon,
-  Group as GroupIcon,
-  AssignmentInd as AssignmentIndIcon,
+  Print as PrintIcon,
+  Close as CloseIcon,
   Event as EventIcon,
   Check as CheckIcon,
-  Close as CloseIcon,
-  Star as StarIcon,
-  Search as SearchIcon,
-  Print as PrintIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../context/AuthContext';
 
-// רכיב עמוד ניהול תרגילים
+// רכיב עמוד ניהול תרגילים ואימונים
 const TrainingManagement = () => {
-  const { api } = useAuth();
-  
-  // מצב לשונית פעילה
+  // אין שימוש ב-useAuth – הוסר הייבוא
   const [activeTab, setActiveTab] = useState(0);
-  
-  // מצבי טעינה ושגיאה
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // החלפת לשונית
+
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
-  
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1" gutterBottom>
           ניהול תרגילים ואימונים
         </Typography>
-        
         <Box>
           <Tooltip title="ייצא דוח">
             <IconButton sx={{ mr: 1 }}>
               <PrintIcon />
             </IconButton>
           </Tooltip>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-          >
+          <Button variant="contained" color="primary" startIcon={<AddIcon />}>
             תרגיל חדש
           </Button>
         </Box>
       </Box>
-      
+
       <Paper sx={{ mb: 3 }}>
         <Tabs
           value={activeTab}
@@ -112,11 +95,10 @@ const TrainingManagement = () => {
           <Tab label="ניתוח ומעקב" />
         </Tabs>
       </Paper>
-      
-      {/* הודעת שגיאה */}
+
       {error && (
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           sx={{ mb: 2 }}
           action={
             <Button color="inherit" size="small" onClick={() => setError(null)}>
@@ -127,18 +109,13 @@ const TrainingManagement = () => {
           {error}
         </Alert>
       )}
-      
-      {/* תוכן לשוניות */}
+
       {activeTab === 0 && <TeamTraining />}
       {activeTab === 1 && <TourniquetTraining />}
       {activeTab === 2 && <MedicsTraining />}
       {activeTab === 3 && <TrainingAnalytics />}
-      
-      {/* מסך טעינה */}
-      <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        open={loading}
-      >
+
+      <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={loading}>
         <CircularProgress color="inherit" />
       </Backdrop>
     </Box>
@@ -152,8 +129,7 @@ const TeamTraining = () => {
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [selectedTraining, setSelectedTraining] = useState(null);
-  
-  // מצב הטופס
+
   const [formData, setFormData] = useState({
     date: '',
     team: '',
@@ -162,17 +138,12 @@ const TeamTraining = () => {
     notes: '',
     performance_rating: 3,
   });
-  
-  // טעינת נתונים
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      
       try {
-        // נתוני צוותים לדוגמה
         const mockTeams = ['אתק', 'רתק', 'חוד', 'מפלג'];
-        
-        // נתוני תרגילים לדוגמה
         const mockTrainings = [
           {
             id: 1,
@@ -202,7 +173,6 @@ const TeamTraining = () => {
             performance_rating: 5,
           },
         ];
-        
         setTeams(mockTeams);
         setTrainings(mockTrainings);
         setLoading(false);
@@ -211,11 +181,9 @@ const TeamTraining = () => {
         setLoading(false);
       }
     };
-    
     fetchData();
   }, []);
-  
-  // פתיחת טופס הוספה
+
   const handleAddTraining = () => {
     setSelectedTraining(null);
     setFormData({
@@ -228,8 +196,7 @@ const TeamTraining = () => {
     });
     setOpenForm(true);
   };
-  
-  // פתיחת טופס עריכה
+
   const handleEditTraining = (training) => {
     setSelectedTraining(training);
     setFormData({
@@ -242,48 +209,38 @@ const TeamTraining = () => {
     });
     setOpenForm(true);
   };
-  
-  // שינוי בטופס
+
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData({ ...formData, [name]: value });
   };
-  
-  // שמירת תרגיל
+
   const handleSaveTraining = () => {
     if (selectedTraining) {
-      // עדכון תרגיל קיים
-      const updatedTrainings = trainings.map(training =>
+      const updatedTrainings = trainings.map((training) =>
         training.id === selectedTraining.id ? { ...training, ...formData } : training
       );
       setTrainings(updatedTrainings);
     } else {
-      // הוספת תרגיל חדש
       const newTraining = {
-        id: Math.max(0, ...trainings.map(t => t.id)) + 1,
+        id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
         ...formData,
       };
       setTrainings([...trainings, newTraining]);
     }
-    
     setOpenForm(false);
   };
-  
-  // מחיקת תרגיל
+
   const handleDeleteTraining = (id) => {
-    const updatedTrainings = trainings.filter(training => training.id !== id);
+    const updatedTrainings = trainings.filter((training) => training.id !== id);
     setTrainings(updatedTrainings);
   };
-  
-  // פורמט תאריך
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('he-IL');
   };
-  
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -291,23 +248,18 @@ const TeamTraining = () => {
       </Box>
     );
   }
-  
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" component="h2">
           תרגילי אר"ן צוותיים
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleAddTraining}
-        >
+        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleAddTraining}>
           תרגיל חדש
         </Button>
       </Box>
-      
+
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
           <TableContainer component={Paper}>
@@ -326,9 +278,7 @@ const TeamTraining = () => {
                 {trainings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} align="center">
-                      <Typography sx={{ py: 3 }}>
-                        לא נמצאו תרגילים
-                      </Typography>
+                      <Typography sx={{ py: 3 }}>לא נמצאו תרגילים</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -339,29 +289,17 @@ const TeamTraining = () => {
                       <TableCell>{training.scenario}</TableCell>
                       <TableCell>{training.location}</TableCell>
                       <TableCell>
-                        <Rating
-                          value={training.performance_rating}
-                          readOnly
-                          size="small"
-                        />
+                        <Rating value={training.performance_rating} readOnly size="small" />
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex' }}>
                           <Tooltip title="ערוך">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditTraining(training)}
-                              sx={{ mr: 1 }}
-                            >
+                            <IconButton size="small" onClick={() => handleEditTraining(training)} sx={{ mr: 1 }}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="מחק">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleDeleteTraining(training.id)}
-                            >
+                            <IconButton size="small" color="error" onClick={() => handleDeleteTraining(training.id)}>
                               <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -374,66 +312,41 @@ const TeamTraining = () => {
             </Table>
           </TableContainer>
         </Grid>
-        
+
         <Grid item xs={12} md={4}>
           <Card>
             <CardHeader title="סיכום תרגילים" />
             <CardContent>
               <List>
                 {teams.map((team) => {
-                  const teamTrainings = trainings.filter(t => t.team === team);
+                  const teamTrainings = trainings.filter((t) => t.team === team);
                   const count = teamTrainings.length;
-                  const avgRating = count > 0
-                    ? teamTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / count
-                    : 0;
-                  
+                  const avgRating = count > 0 ? teamTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / count : 0;
                   return (
                     <ListItem key={team}>
                       <ListItemIcon>
-                        <GroupIcon />
+                        <Avatar>{team.charAt(0)}</Avatar>
                       </ListItemIcon>
-                      <ListItemText
-                        primary={`צוות ${team}`}
-                        secondary={`${count} תרגילים`}
-                      />
-                      {count > 0 && (
-                        <Rating
-                          value={avgRating}
-                          precision={0.5}
-                          readOnly
-                          size="small"
-                        />
-                      )}
+                      <ListItemText primary={`צוות ${team}`} secondary={`${count} תרגילים`} />
+                      {count > 0 && <Rating value={avgRating} precision={0.5} readOnly size="small" />}
                     </ListItem>
                   );
                 })}
               </List>
-              
               <Divider sx={{ my: 2 }} />
-              
               <Box textAlign="center">
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   סה"כ תרגילים שבוצעו
                 </Typography>
-                <Typography variant="h4">
-                  {trainings.length}
-                </Typography>
+                <Typography variant="h4">{trainings.length}</Typography>
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
-      
-      {/* טופס הוספה/עריכה */}
-      <Dialog
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>
-          {selectedTraining ? 'עריכת תרגיל' : 'הוספת תרגיל חדש'}
-        </DialogTitle>
+
+      <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{selectedTraining ? 'עריכת תרגיל' : 'הוספת תרגיל חדש'}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
@@ -448,16 +361,10 @@ const TeamTraining = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth required>
                 <InputLabel>צוות</InputLabel>
-                <Select
-                  name="team"
-                  value={formData.team}
-                  onChange={handleFormChange}
-                  label="צוות"
-                >
+                <Select name="team" value={formData.team} onChange={handleFormChange} label="צוות">
                   {teams.map((team) => (
                     <MenuItem key={team} value={team}>
                       {team}
@@ -466,7 +373,6 @@ const TeamTraining = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
             <Grid item xs={12}>
               <TextField
                 name="scenario"
@@ -477,7 +383,6 @@ const TeamTraining = () => {
                 onChange={handleFormChange}
               />
             </Grid>
-            
             <Grid item xs={12}>
               <TextField
                 name="location"
@@ -487,7 +392,6 @@ const TeamTraining = () => {
                 onChange={handleFormChange}
               />
             </Grid>
-            
             <Grid item xs={12}>
               <TextField
                 name="notes"
@@ -499,7 +403,6 @@ const TeamTraining = () => {
                 onChange={handleFormChange}
               />
             </Grid>
-            
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Typography variant="body1" sx={{ mr: 2 }}>
@@ -508,23 +411,17 @@ const TeamTraining = () => {
                 <Rating
                   name="performance_rating"
                   value={Number(formData.performance_rating)}
-                  onChange={(event, newValue) => {
-                    setFormData({ ...formData, performance_rating: newValue });
-                  }}
+                  onChange={(event, newValue) =>
+                    setFormData({ ...formData, performance_rating: newValue })
+                  }
                 />
               </Box>
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenForm(false)}>
-            ביטול
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSaveTraining}
-          >
+          <Button onClick={() => setOpenForm(false)}>ביטול</Button>
+          <Button variant="contained" color="primary" onClick={handleSaveTraining}>
             {selectedTraining ? 'עדכן' : 'הוסף'}
           </Button>
         </DialogActions>
@@ -542,25 +439,19 @@ const TourniquetTraining = () => {
   const [openForm, setOpenForm] = useState(false);
   const [selectedSoldier, setSelectedSoldier] = useState(null);
   const [filterTeam, setFilterTeam] = useState('');
-  
-  // מצב הטופס
+
   const [formData, setFormData] = useState({
     soldier_id: '',
     training_date: '',
     passed: true,
     notes: '',
   });
-  
-  // טעינת נתונים
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      
       try {
-        // נתוני צוותים לדוגמה
         const mockTeams = ['אתק', 'רתק', 'חוד', 'מפלג'];
-        
-        // נתוני חיילים לדוגמה
         const mockSoldiers = [
           { id: 1, name: 'אלון כהן', team: 'אתק', personal_id: '9876543' },
           { id: 2, name: 'דני לוי', team: 'אתק', personal_id: '8765432' },
@@ -571,8 +462,6 @@ const TourniquetTraining = () => {
           { id: 7, name: 'דור שלום', team: 'מפלג', personal_id: '3219876' },
           { id: 8, name: 'תומר הדר', team: 'מפלג', personal_id: '2198765' },
         ];
-        
-        // נתוני תרגילים לדוגמה
         const mockTrainings = [
           { id: 1, soldier_id: 1, training_date: '2025-02-05', passed: true, notes: '' },
           { id: 2, soldier_id: 2, training_date: '2025-02-07', passed: true, notes: '' },
@@ -581,7 +470,6 @@ const TourniquetTraining = () => {
           { id: 5, soldier_id: 7, training_date: '2025-02-20', passed: true, notes: '' },
           { id: 6, soldier_id: 1, training_date: '2025-03-05', passed: true, notes: '' },
         ];
-        
         setTeams(mockTeams);
         setSoldiers(mockSoldiers);
         setTrainings(mockTrainings);
@@ -591,22 +479,16 @@ const TourniquetTraining = () => {
         setLoading(false);
       }
     };
-    
     fetchData();
   }, []);
-  
-  // חישוב תרגילים פר חייל
-  const getSoldierTrainings = (soldierId) => {
-    return trainings.filter(t => t.soldier_id === soldierId);
-  };
-  
-  // בדיקה האם חייל מתורגל החודש
+
+  const getSoldierTrainings = (soldierId) => trainings.filter((t) => t.soldier_id === soldierId);
+
   const isTrainedThisMonth = (soldierId) => {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
-    return trainings.some(t => {
+    return trainings.some((t) => {
       const trainingDate = new Date(t.training_date);
       return (
         t.soldier_id === soldierId &&
@@ -615,8 +497,7 @@ const TourniquetTraining = () => {
       );
     });
   };
-  
-  // פתיחת טופס הוספת תרגול
+
   const handleAddTraining = (soldier) => {
     setSelectedSoldier(soldier);
     setFormData({
@@ -627,39 +508,28 @@ const TourniquetTraining = () => {
     });
     setOpenForm(true);
   };
-  
-  // שינוי בטופס
+
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
+    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
   };
-  
-  // שמירת תרגול
+
   const handleSaveTraining = () => {
-    // הוספת תרגול חדש
     const newTraining = {
-      id: Math.max(0, ...trainings.map(t => t.id)) + 1,
+      id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
       ...formData,
     };
-    
     setTrainings([...trainings, newTraining]);
     setOpenForm(false);
   };
-  
-  // סינון חיילים לפי צוות
-  const filteredSoldiers = filterTeam
-    ? soldiers.filter(s => s.team === filterTeam)
-    : soldiers;
-  
-  // פורמט תאריך
+
+  const filteredSoldiers = filterTeam ? soldiers.filter((s) => s.team === filterTeam) : soldiers;
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('he-IL');
   };
-  
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -667,14 +537,13 @@ const TourniquetTraining = () => {
       </Box>
     );
   }
-  
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" component="h2">
           תרגול מחצ"ים - חסמי עורקים
         </Typography>
-        
         <Box>
           <FormControl sx={{ minWidth: 120, mr: 2 }}>
             <InputLabel id="team-filter-label">סינון לפי צוות</InputLabel>
@@ -686,20 +555,18 @@ const TourniquetTraining = () => {
             >
               <MenuItem value="">הכל</MenuItem>
               {teams.map((team) => (
-                <MenuItem key={team} value={team}>{team}</MenuItem>
+                <MenuItem key={team} value={team}>
+                  {team}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
-          
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-          >
+          <Button variant="outlined" startIcon={<RefreshIcon />}>
             רענן
           </Button>
         </Box>
       </Box>
-      
+
       <TableContainer component={Paper} sx={{ mb: 4 }}>
         <Table>
           <TableHead>
@@ -715,18 +582,16 @@ const TourniquetTraining = () => {
           <TableBody>
             {filteredSoldiers.map((soldier) => {
               const soldierTrainings = getSoldierTrainings(soldier.id);
-              const lastTraining = soldierTrainings.length > 0 
-                ? soldierTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0] 
-                : null;
+              const lastTraining =
+                soldierTrainings.length > 0
+                  ? soldierTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0]
+                  : null;
               const trainedThisMonth = isTrainedThisMonth(soldier.id);
-              
               return (
-                <TableRow 
-                  key={soldier.id} 
+                <TableRow
+                  key={soldier.id}
                   hover
-                  sx={{
-                    bgcolor: !trainedThisMonth ? 'rgba(255, 0, 0, 0.05)' : 'inherit',
-                  }}
+                  sx={{ bgcolor: !trainedThisMonth ? 'rgba(255, 0, 0, 0.05)' : 'inherit' }}
                 >
                   <TableCell>{soldier.name}</TableCell>
                   <TableCell>{soldier.personal_id}</TableCell>
@@ -736,12 +601,7 @@ const TourniquetTraining = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {formatDate(lastTraining.training_date)}
                         {!lastTraining.passed && (
-                          <Chip 
-                            label="נכשל" 
-                            color="error" 
-                            size="small" 
-                            sx={{ ml: 1 }} 
-                          />
+                          <Chip label="נכשל" color="error" size="small" sx={{ ml: 1 }} />
                         )}
                       </Box>
                     ) : (
@@ -749,7 +609,7 @@ const TourniquetTraining = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Chip 
+                    <Chip
                       icon={trainedThisMonth ? <CheckIcon /> : <CloseIcon />}
                       label={trainedThisMonth ? 'בוצע החודש' : 'לא בוצע החודש'}
                       color={trainedThisMonth ? 'success' : 'error'}
@@ -773,7 +633,7 @@ const TourniquetTraining = () => {
           </TableBody>
         </Table>
       </TableContainer>
-      
+
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
           <Card>
@@ -791,23 +651,17 @@ const TourniquetTraining = () => {
                   </TableHead>
                   <TableBody>
                     {teams.map((team) => {
-                      const teamSoldiers = soldiers.filter(s => s.team === team);
-                      const trainedCount = teamSoldiers.filter(s => isTrainedThisMonth(s.id)).length;
-                      const percentage = teamSoldiers.length > 0 
-                        ? Math.round((trainedCount / teamSoldiers.length) * 100) 
-                        : 0;
-                      
+                      const teamSoldiers = soldiers.filter((s) => s.team === team);
+                      const trainedCount = teamSoldiers.filter((s) => isTrainedThisMonth(s.id)).length;
+                      const percentage =
+                        teamSoldiers.length > 0 ? Math.round((trainedCount / teamSoldiers.length) * 100) : 0;
                       return (
                         <TableRow key={team}>
                           <TableCell>{team}</TableCell>
                           <TableCell>{teamSoldiers.length}</TableCell>
                           <TableCell>{trainedCount}</TableCell>
                           <TableCell>
-                            <Chip 
-                              label={`${percentage}%`}
-                              color={percentage >= 80 ? 'success' : percentage >= 50 ? 'warning' : 'error'}
-                              size="small"
-                            />
+                            <Chip label={`${percentage}%`} color={percentage >= 80 ? 'success' : percentage >= 50 ? 'warning' : 'error'} size="small" />
                           </TableCell>
                         </TableRow>
                       );
@@ -818,7 +672,7 @@ const TourniquetTraining = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} md={6}>
           <Card>
             <CardHeader title="סיכום חודשי" />
@@ -830,51 +684,39 @@ const TourniquetTraining = () => {
                 <Typography variant="h4" gutterBottom>
                   {soldiers.length}
                 </Typography>
-                
                 <Box display="flex" justifyContent="center" mb={2}>
                   <Box textAlign="center" p={2}>
                     <Typography variant="body1" color="success.main">
                       תורגלו החודש
                     </Typography>
                     <Typography variant="h5">
-                      {soldiers.filter(s => isTrainedThisMonth(s.id)).length}
+                      {soldiers.filter((s) => isTrainedThisMonth(s.id)).length}
                     </Typography>
                   </Box>
-                  
                   <Box textAlign="center" p={2}>
                     <Typography variant="body1" color="error.main">
                       לא תורגלו החודש
                     </Typography>
                     <Typography variant="h5">
-                      {soldiers.filter(s => !isTrainedThisMonth(s.id)).length}
+                      {soldiers.filter((s) => !isTrainedThisMonth(s.id)).length}
                     </Typography>
                   </Box>
                 </Box>
-                
                 <Divider sx={{ my: 2 }} />
-                
                 <Typography variant="body1" color="text.secondary" gutterBottom>
                   אחוז ביצוע חודשי
                 </Typography>
                 <Typography variant="h4" color="primary">
-                  {Math.round((soldiers.filter(s => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}%
+                  {Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}%
                 </Typography>
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
-      
-      {/* טופס הוספת תרגול */}
-      <Dialog
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>
-          תרגול חדש - {selectedSoldier?.name}
-        </DialogTitle>
+
+      <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="sm">
+        <DialogTitle>תרגול חדש - {selectedSoldier?.name}</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
@@ -889,22 +731,15 @@ const TourniquetTraining = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth>
                 <InputLabel>תוצאה</InputLabel>
-                <Select
-                  name="passed"
-                  value={formData.passed}
-                  onChange={handleFormChange}
-                  label="תוצאה"
-                >
+                <Select name="passed" value={formData.passed} onChange={handleFormChange} label="תוצאה">
                   <MenuItem value={true}>עבר</MenuItem>
                   <MenuItem value={false}>נכשל</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
-            
             <Grid item xs={12}>
               <TextField
                 name="notes"
@@ -919,14 +754,8 @@ const TourniquetTraining = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenForm(false)}>
-            ביטול
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSaveTraining}
-          >
+          <Button onClick={() => setOpenForm(false)}>ביטול</Button>
+          <Button variant="contained" color="primary" onClick={handleSaveTraining}>
             שמור
           </Button>
         </DialogActions>
@@ -941,9 +770,7 @@ const MedicsTraining = () => {
   const [medics, setMedics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
-  const [selectedMedic, setSelectedMedic] = useState(null);
-  
-  // מצב הטופס
+
   const [formData, setFormData] = useState({
     date: '',
     medic_id: '',
@@ -952,22 +779,17 @@ const MedicsTraining = () => {
     attendance: true,
     notes: '',
   });
-  
-  // טעינת נתונים
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      
       try {
-        // נתוני חובשים לדוגמה
         const mockMedics = [
           { id: 1, name: 'דן לוי', team: 'אתק', role: 'חובש פלוגתי' },
           { id: 2, name: 'עידן כהן', team: 'רתק', role: 'חובש פלוגתי' },
           { id: 3, name: 'אורי אלון', team: 'חוד', role: 'חובש פלוגתי' },
           { id: 4, name: 'יוני דרור', team: 'מפלג', role: 'חובש פלוגתי' },
         ];
-        
-        // נתוני תרגול לדוגמה
         const mockTrainings = [
           {
             id: 1,
@@ -1051,7 +873,6 @@ const MedicsTraining = () => {
             notes: 'לא נכח באימון',
           },
         ];
-        
         setMedics(mockMedics);
         setTrainings(mockTrainings);
         setLoading(false);
@@ -1060,118 +881,82 @@ const MedicsTraining = () => {
         setLoading(false);
       }
     };
-    
     fetchData();
   }, []);
-  
-  // קבלת כל ימי התרגול הייחודיים
+
   const getTrainingDates = () => {
-    const dates = [...new Set(trainings.map(t => t.date))];
+    const dates = [...new Set(trainings.map((t) => t.date))];
     return dates.sort((a, b) => new Date(b) - new Date(a));
   };
-  
-  // קבלת הנושאים שתורגלו בתאריך מסויים
+
   const getTopicsForDate = (date) => {
-    const trainingsOnDate = trainings.filter(t => t.date === date);
-    const topics = [...new Set(trainingsOnDate.map(t => t.topic))];
+    const trainingsOnDate = trainings.filter((t) => t.date === date);
+    const topics = [...new Set(trainingsOnDate.map((t) => t.topic))];
     return topics.join(', ');
   };
-  
-  // קבלת חובשים שנכחו בתאריך מסויים
+
   const getMedicsForDate = (date) => {
-    const trainingsOnDate = trainings.filter(t => t.date === date);
-    const presentMedicIds = trainingsOnDate
-      .filter(t => t.attendance)
-      .map(t => t.medic_id);
-    
-    return medics.filter(m => presentMedicIds.includes(m.id));
+    const trainingsOnDate = trainings.filter((t) => t.date === date);
+    const presentMedicIds = trainingsOnDate.filter((t) => t.attendance).map((t) => t.medic_id);
+    return medics.filter((m) => presentMedicIds.includes(m.id));
   };
-  
-  // קבלת חובשים שנעדרו בתאריך מסויים
+
   const getAbsentMedicsForDate = (date) => {
-    const trainingsOnDate = trainings.filter(t => t.date === date);
-    const absentMedicIds = trainingsOnDate
-      .filter(t => !t.attendance)
-      .map(t => t.medic_id);
-    const presentMedicIds = trainingsOnDate
-      .filter(t => t.attendance)
-      .map(t => t.medic_id);
-    
-    // חובשים שלא נכחו באימון כלל
-    const allMedicIds = medics.map(m => m.id);
+    const trainingsOnDate = trainings.filter((t) => t.date === date);
+    const absentMedicIds = trainingsOnDate.filter((t) => !t.attendance).map((t) => t.medic_id);
+    const presentMedicIds = trainingsOnDate.filter((t) => t.attendance).map((t) => t.medic_id);
+    const allMedicIds = medics.map((m) => m.id);
     const fullyAbsentMedicIds = allMedicIds.filter(
-      id => !presentMedicIds.includes(id) && !absentMedicIds.includes(id)
+      (id) => !presentMedicIds.includes(id) && !absentMedicIds.includes(id)
     );
-    
-    return medics.filter(m => absentMedicIds.includes(m.id) || fullyAbsentMedicIds.includes(m.id));
+    return medics.filter((m) => absentMedicIds.includes(m.id) || fullyAbsentMedicIds.includes(m.id));
   };
-  
-  // חישוב ממוצע הביצוע של כל חובש
+
   const getMedicAveragePerformance = (medicId) => {
-    const medicTrainings = trainings.filter(t => t.medic_id === medicId && t.attendance);
+    const medicTrainings = trainings.filter((t) => t.medic_id === medicId && t.attendance);
     if (medicTrainings.length === 0) return 0;
-    
     const total = medicTrainings.reduce((sum, t) => sum + t.performance_rating, 0);
     return total / medicTrainings.length;
   };
-  
-  // חישוב אחוז ההשתתפות של כל חובש
+
   const getMedicAttendancePercentage = (medicId) => {
     const trainingDates = getTrainingDates();
-    const medicTrainings = trainings.filter(t => t.medic_id === medicId);
-    
-    // מספר האימונים שהחובש נכח בהם
-    const attendedCount = medicTrainings.filter(t => t.attendance).length;
-    
+    const medicTrainings = trainings.filter((t) => t.medic_id === medicId);
+    const attendedCount = medicTrainings.filter((t) => t.attendance).length;
     return trainingDates.length > 0 ? Math.round((attendedCount / trainingDates.length) * 100) : 0;
   };
-  
-  // פתיחת טופס תרגול
+
   const handleAddTraining = () => {
-    setSelectedMedic(null);
-    
-    // תאריך נוכחי כברירת מחדל
-    const today = new Date().toISOString().split('T')[0];
-    
     setFormData({
-      date: today,
+      date: new Date().toISOString().split('T')[0],
       medic_id: '',
       topic: '',
       performance_rating: 3,
       attendance: true,
       notes: '',
     });
-    
     setOpenForm(true);
   };
-  
-  // שינוי בטופס
+
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
+    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
   };
-  
-  // שמירת תרגול
+
   const handleSaveTraining = () => {
-    // הוספת תרגול חדש
     const newTraining = {
-      id: Math.max(0, ...trainings.map(t => t.id)) + 1,
+      id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
       ...formData,
     };
-    
     setTrainings([...trainings, newTraining]);
     setOpenForm(false);
   };
-  
-  // פורמט תאריך
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('he-IL');
   };
-  
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -1179,42 +964,31 @@ const MedicsTraining = () => {
       </Box>
     );
   }
-  
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5" component="h2">
           תרגול חובשים שבועי
         </Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleAddTraining}
-        >
+        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleAddTraining}>
           תרגול חדש
         </Button>
       </Box>
-      
+
       <Grid container spacing={3}>
         <Grid item xs={12} md={7}>
           <Typography variant="h6" gutterBottom>
             אימונים אחרונים
           </Typography>
-          
           {getTrainingDates().length === 0 ? (
             <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography color="text.secondary">
-                לא נמצאו אימונים
-              </Typography>
+              <Typography color="text.secondary">לא נמצאו אימונים</Typography>
             </Paper>
           ) : (
             getTrainingDates().map((date) => (
               <Card key={date} sx={{ mb: 3 }}>
-                <CardHeader
-                  title={formatDate(date)}
-                  subheader={`נושא: ${getTopicsForDate(date)}`}
-                />
+                <CardHeader title={formatDate(date)} subheader={`נושא: ${getTopicsForDate(date)}`} />
                 <CardContent>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
@@ -1223,10 +997,7 @@ const MedicsTraining = () => {
                       </Typography>
                       <List dense>
                         {getMedicsForDate(date).map((medic) => {
-                          const trainingRecord = trainings.find(
-                            t => t.date === date && t.medic_id === medic.id
-                          );
-                          
+                          const trainingRecord = trainings.find((t) => t.date === date && t.medic_id === medic.id);
                           return (
                             <ListItem key={medic.id}>
                               <ListItemIcon>
@@ -1234,23 +1005,13 @@ const MedicsTraining = () => {
                                   {medic.name.charAt(0)}
                                 </Avatar>
                               </ListItemIcon>
-                              <ListItemText
-                                primary={medic.name}
-                                secondary={medic.team}
-                              />
-                              {trainingRecord && (
-                                <Rating
-                                  value={trainingRecord.performance_rating}
-                                  readOnly
-                                  size="small"
-                                />
-                              )}
+                              <ListItemText primary={medic.name} secondary={medic.team} />
+                              {trainingRecord && <Rating value={trainingRecord.performance_rating} readOnly size="small" />}
                             </ListItem>
                           );
                         })}
                       </List>
                     </Grid>
-                    
                     <Grid item xs={12} sm={6}>
                       <Typography variant="subtitle1" gutterBottom>
                         חובשים שלא השתתפו
@@ -1268,10 +1029,7 @@ const MedicsTraining = () => {
                                   {medic.name.charAt(0)}
                                 </Avatar>
                               </ListItemIcon>
-                              <ListItemText
-                                primary={medic.name}
-                                secondary={medic.team}
-                              />
+                              <ListItemText primary={medic.name} secondary={medic.team} />
                               <Chip label="לא נכח" size="small" color="error" variant="outlined" />
                             </ListItem>
                           ))}
@@ -1284,7 +1042,7 @@ const MedicsTraining = () => {
             ))
           )}
         </Grid>
-        
+
         <Grid item xs={12} md={5}>
           <Typography variant="h6" gutterBottom>
             סיכום ביצועים
@@ -1308,27 +1066,24 @@ const MedicsTraining = () => {
                       <Chip
                         label={`${getMedicAttendancePercentage(medic.id)}%`}
                         color={
-                          getMedicAttendancePercentage(medic.id) >= 80 ? 'success' :
-                          getMedicAttendancePercentage(medic.id) >= 50 ? 'warning' :
-                          'error'
+                          getMedicAttendancePercentage(medic.id) >= 80
+                            ? 'success'
+                            : getMedicAttendancePercentage(medic.id) >= 50
+                            ? 'warning'
+                            : 'error'
                         }
                         size="small"
                       />
                     </TableCell>
                     <TableCell>
-                      <Rating
-                        value={getMedicAveragePerformance(medic.id)}
-                        precision={0.5}
-                        readOnly
-                        size="small"
-                      />
+                      <Rating value={getMedicAveragePerformance(medic.id)} precision={0.5} readOnly size="small" />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
-          
+
           <Card sx={{ mt: 3 }}>
             <CardHeader title="סיכום אימונים" />
             <CardContent>
@@ -1339,32 +1094,25 @@ const MedicsTraining = () => {
                 <Typography variant="h4" gutterBottom>
                   {getTrainingDates().length}
                 </Typography>
-                
                 <Divider sx={{ my: 2 }} />
-                
                 <Typography variant="body1" color="text.secondary" gutterBottom>
                   ממוצע השתתפות
                 </Typography>
                 <Typography variant="h5" color="primary">
                   {Math.round(
-                    medics.reduce(
-                      (sum, medic) => sum + getMedicAttendancePercentage(medic.id),
-                      0
-                    ) / medics.length
-                  )}%
+                    medics.reduce((sum, medic) => sum + getMedicAttendancePercentage(medic.id), 0) /
+                      medics.length
+                  )}
+                  %
                 </Typography>
-                
                 <Divider sx={{ my: 2 }} />
-                
                 <Typography variant="body1" color="text.secondary" gutterBottom>
                   ממוצע ביצוע כללי
                 </Typography>
                 <Rating
                   value={
-                    medics.reduce(
-                      (sum, medic) => sum + getMedicAveragePerformance(medic.id),
-                      0
-                    ) / medics.length
+                    medics.reduce((sum, medic) => sum + getMedicAveragePerformance(medic.id), 0) /
+                    medics.length
                   }
                   precision={0.5}
                   readOnly
@@ -1374,17 +1122,9 @@ const MedicsTraining = () => {
           </Card>
         </Grid>
       </Grid>
-      
-      {/* טופס הוספת תרגול */}
-      <Dialog
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>
-          הוספת תרגול חדש
-        </DialogTitle>
+
+      <Dialog open={openForm} onClose={() => setOpenForm(false)} fullWidth maxWidth="sm">
+        <DialogTitle>הוספת תרגול חדש</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
@@ -1399,16 +1139,10 @@ const MedicsTraining = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            
             <Grid item xs={12} sm={6}>
               <FormControl fullWidth required>
                 <InputLabel>חובש</InputLabel>
-                <Select
-                  name="medic_id"
-                  value={formData.medic_id}
-                  onChange={handleFormChange}
-                  label="חובש"
-                >
+                <Select name="medic_id" value={formData.medic_id} onChange={handleFormChange} label="חובש">
                   {medics.map((medic) => (
                     <MenuItem key={medic.id} value={medic.id}>
                       {medic.name} ({medic.team})
@@ -1417,7 +1151,6 @@ const MedicsTraining = () => {
                 </Select>
               </FormControl>
             </Grid>
-            
             <Grid item xs={12}>
               <TextField
                 name="topic"
@@ -1428,20 +1161,12 @@ const MedicsTraining = () => {
                 onChange={handleFormChange}
               />
             </Grid>
-            
             <Grid item xs={12}>
               <FormControlLabel
-                control={
-                  <Checkbox
-                    name="attendance"
-                    checked={formData.attendance}
-                    onChange={handleFormChange}
-                  />
-                }
+                control={<Checkbox name="attendance" checked={formData.attendance} onChange={handleFormChange} />}
                 label="נכח בתרגול"
               />
             </Grid>
-            
             {formData.attendance && (
               <Grid item xs={12}>
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -1449,14 +1174,11 @@ const MedicsTraining = () => {
                   <Rating
                     name="performance_rating"
                     value={Number(formData.performance_rating)}
-                    onChange={(event, newValue) => {
-                      setFormData({ ...formData, performance_rating: newValue });
-                    }}
+                    onChange={(event, newValue) => setFormData({ ...formData, performance_rating: newValue })}
                   />
                 </Box>
               </Grid>
             )}
-            
             <Grid item xs={12}>
               <TextField
                 name="notes"
@@ -1471,14 +1193,8 @@ const MedicsTraining = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenForm(false)}>
-            ביטול
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleSaveTraining}
-          >
+          <Button onClick={() => setOpenForm(false)}>ביטול</Button>
+          <Button variant="contained" color="primary" onClick={handleSaveTraining}>
             שמור
           </Button>
         </DialogActions>
@@ -1487,16 +1203,13 @@ const MedicsTraining = () => {
   );
 };
 
-// רכיב ניתוח מעקב אימונים
+// רכיב ניתוח ומעקב אימונים
 const TrainingAnalytics = () => {
-  const [loading, setLoading] = useState(false);
-  
   return (
     <Box>
       <Typography variant="h5" component="h2" gutterBottom>
         ניתוח ומעקב אימונים
       </Typography>
-      
       <Grid container spacing={3}>
         <Grid item xs={12} md={6} lg={3}>
           <Card>
@@ -1509,40 +1222,31 @@ const TrainingAnalytics = () => {
                 <Typography variant="h4" gutterBottom>
                   28
                 </Typography>
-                
                 <Divider sx={{ my: 2 }} />
-                
                 <Grid container spacing={2}>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary">
                       אר"ן צוותי
                     </Typography>
-                    <Typography variant="h6">
-                      7
-                    </Typography>
+                    <Typography variant="h6">7</Typography>
                   </Grid>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary">
                       מחצ"ים
                     </Typography>
-                    <Typography variant="h6">
-                      13
-                    </Typography>
+                    <Typography variant="h6">13</Typography>
                   </Grid>
                   <Grid item xs={4}>
                     <Typography variant="body2" color="text.secondary">
                       חובשים
                     </Typography>
-                    <Typography variant="h6">
-                      8
-                    </Typography>
+                    <Typography variant="h6">8</Typography>
                   </Grid>
                 </Grid>
               </Box>
             </CardContent>
           </Card>
         </Grid>
-        
         <Grid item xs={12} md={6} lg={3}>
           <Card>
             <CardHeader title="דירוגי ביצוע" />
@@ -1586,7 +1290,6 @@ const TrainingAnalytics = () => {
             </CardContent>
           </Card>
         </Grid>
-        
         <Grid item xs={12} md={6} lg={3}>
           <Card>
             <CardHeader title="השתתפות" />
@@ -1598,14 +1301,11 @@ const TrainingAnalytics = () => {
                 <Typography variant="h4" color="primary" gutterBottom>
                   87%
                 </Typography>
-                
                 <Divider sx={{ my: 2 }} />
-                
                 <Box>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
                     השתתפות לפי צוות
                   </Typography>
-                  
                   <Box display="flex" alignItems="center" mb={1}>
                     <Typography variant="body2" sx={{ width: 60 }}>
                       אתק
@@ -1617,7 +1317,6 @@ const TrainingAnalytics = () => {
                       92%
                     </Typography>
                   </Box>
-                  
                   <Box display="flex" alignItems="center" mb={1}>
                     <Typography variant="body2" sx={{ width: 60 }}>
                       רתק
@@ -1629,7 +1328,6 @@ const TrainingAnalytics = () => {
                       85%
                     </Typography>
                   </Box>
-                  
                   <Box display="flex" alignItems="center" mb={1}>
                     <Typography variant="body2" sx={{ width: 60 }}>
                       חוד
@@ -1641,7 +1339,6 @@ const TrainingAnalytics = () => {
                       90%
                     </Typography>
                   </Box>
-                  
                   <Box display="flex" alignItems="center">
                     <Typography variant="body2" sx={{ width: 60 }}>
                       מפלג
@@ -1658,7 +1355,6 @@ const TrainingAnalytics = () => {
             </CardContent>
           </Card>
         </Grid>
-        
         <Grid item xs={12} md={6} lg={3}>
           <Card>
             <CardHeader title="מועדי אימון הבאים" />
@@ -1668,37 +1364,25 @@ const TrainingAnalytics = () => {
                   <ListItemIcon>
                     <EventIcon color="primary" />
                   </ListItemIcon>
-                  <ListItemText
-                    primary="תרגול חובשים שבועי"
-                    secondary="14/03/2025"
-                  />
+                  <ListItemText primary="תרגול חובשים שבועי" secondary="14/03/2025" />
                 </ListItem>
                 <ListItem>
                   <ListItemIcon>
                     <EventIcon color="secondary" />
                   </ListItemIcon>
-                  <ListItemText
-                    primary="תרגול מחצ״ים (רתק + חוד)"
-                    secondary="16/03/2025"
-                  />
+                  <ListItemText primary="תרגול מחצ״ים (רתק + חוד)" secondary="16/03/2025" />
                 </ListItem>
                 <ListItem>
                   <ListItemIcon>
                     <EventIcon color="error" />
                   </ListItemIcon>
-                  <ListItemText
-                    primary="אר״ן צוותי (אתק)"
-                    secondary="20/03/2025"
-                  />
+                  <ListItemText primary="אר״ן צוותי (אתק)" secondary="20/03/2025" />
                 </ListItem>
                 <ListItem>
                   <ListItemIcon>
                     <EventIcon color="info" />
                   </ListItemIcon>
-                  <ListItemText
-                    primary="תרגול מחצ״ים (אתק + מפלג)"
-                    secondary="23/03/2025"
-                  />
+                  <ListItemText primary="תרגול מחצ״ים (אתק + מפלג)" secondary="23/03/2025" />
                 </ListItem>
               </List>
             </CardContent>

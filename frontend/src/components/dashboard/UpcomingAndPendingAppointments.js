@@ -18,7 +18,7 @@ import {
   ListItemSecondaryAction, 
   Button, 
   Chip, 
-  Paper,
+  Grid,
   CircularProgress,
   Alert,
   IconButton
@@ -30,7 +30,6 @@ import {
   Schedule as ScheduleIcon, 
   Person as PersonIcon, 
   MedicalServices as MedicalServicesIcon,
-  Phone as PhoneIcon,
   ArrowForward as ArrowForwardIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -43,7 +42,7 @@ const UpcomingAndPendingAppointments = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [weekAppointments, setWeekAppointments] = useState([]);
-  const [pendingAppointments, setPendingAppointments] = useState({});
+  const [pendingAppointments, setPendingAppointments] = useState([]);
   const [pendingByType, setPendingByType] = useState({});
   
   useEffect(() => {
@@ -52,7 +51,7 @@ const UpcomingAndPendingAppointments = () => {
       setError(null);
       
       try {
-        // קבלת תורים לשבוע הקרוב
+        // Get appointments for the coming week
         const today = new Date();
         const weekLater = new Date();
         weekLater.setDate(today.getDate() + 7);
@@ -69,7 +68,7 @@ const UpcomingAndPendingAppointments = () => {
           setWeekAppointments(weekResponse.data.results);
         }
         
-        // קבלת הפניות שצריך לקבוע להן תור
+        // Get referrals that need scheduling
         const pendingResponse = await api.get('/referrals/', {
           params: {
             status__in: 'requires_coordination,requires_soldier_coordination,waiting_for_medical_date',
@@ -81,7 +80,7 @@ const UpcomingAndPendingAppointments = () => {
           const pendingData = pendingResponse.data.results;
           setPendingAppointments(pendingData);
           
-          // ארגון ההפניות לפי סוג
+          // Organize referrals by type
           const byType = {};
           pendingData.forEach(item => {
             const type = item.referral_details;
@@ -157,7 +156,7 @@ const UpcomingAndPendingAppointments = () => {
   return (
     <Box sx={{ mb: 4 }}>
       <Grid container spacing={3}>
-        {/* תורים לשבוע הקרוב */}
+        {/* Upcoming appointments for the week */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardHeader 
@@ -252,7 +251,7 @@ const UpcomingAndPendingAppointments = () => {
           </Card>
         </Grid>
 
-        {/* הפניות שצריך לקבוע להן תור */}
+        {/* Pending referrals that need appointments */}
         <Grid item xs={12} md={6}>
           <Card>
             <CardHeader 
