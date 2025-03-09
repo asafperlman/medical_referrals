@@ -389,9 +389,7 @@ class DashboardStatsView(generics.GenericAPIView):
         
         serializer = self.get_serializer(data)
         return Response(serializer.data)
-# יש להוסיף את השורה הבאה לייבוא בראש הקובץ
 
-# ולהוסיף את המחלקות הבאות בסוף הקובץ
 
 class TeamReferralsView(generics.GenericAPIView):
     """
