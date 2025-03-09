@@ -1,0 +1,92 @@
+// frontend/src/data/patientsData.js
+
+/**
+ * רשימת המטופלים עם צוות ומספר אישי
+ */
+const patientsData = [
+    // חוד
+    { full_name: "נועם עקה זוהר", team: "חוד", personal_id: "9114251" },
+    { full_name: "נהר שדמי", team: "חוד", personal_id: "9292413" },
+    { full_name: "יואב אטלן", team: "חוד", personal_id: "9067695" },
+    { full_name: "בן שטינברג", team: "חוד", personal_id: "9180189" },
+    { full_name: "יהלי חמו", team: "חוד", personal_id: "9407190" },
+    { full_name: "שמעון מימון", team: "חוד", personal_id: "9409642" },
+    { full_name: "יונתן ג׳יימס", team: "חוד", personal_id: "9383684" },
+    { full_name: "בן ואקנין", team: "חוד", personal_id: "9271688" },
+    { full_name: "אסף בלר", team: "חוד", personal_id: "9329110" },
+    { full_name: "איתי זק", team: "חוד", personal_id: "9208279" },
+    { full_name: "אלעד סטולרו", team: "חוד", personal_id: "9397140" },
+    { full_name: "טל ריגר", team: "חוד", personal_id: "9417483" },
+    { full_name: "יובל מנגד", team: "חוד", personal_id: "9256601" },
+    { full_name: "שי וייסמרק", team: "חוד", personal_id: "9334741" },
+    { full_name: "איתי חיים סיגאוי", team: "חוד", personal_id: "9320141" },
+    { full_name: "עמית רווח", team: "חוד", personal_id: "9347766" },
+    { full_name: "אורי דנגוט", team: "חוד", personal_id: "9199379" },
+    { full_name: "טל קונפינו", team: "חוד", personal_id: "9390442" },
+    { full_name: "רועי משה קרצמר", team: "חוד", personal_id: "9418334" },
+    { full_name: "גיל סומך", team: "חוד", personal_id: "9295243" },
+    { full_name: "יובל מלכה", team: "חוד", personal_id: "9187199" },
+    { full_name: "מלאכי יצחקי", team: "חוד", personal_id: "8842854" },
+    
+    // אתק
+    { full_name: "תומר ויגמן", team: "אתק", personal_id: "9177039" },
+    { full_name: "יואב תומר", team: "אתק", personal_id: "9387449" },
+    { full_name: "אדם עבדל שאפי", team: "אתק", personal_id: "9450496" },
+    { full_name: "אוהד סולימן", team: "אתק", personal_id: "9387008" },
+    { full_name: "ארתור קנבסקי", team: "אתק", personal_id: "9411096" },
+    { full_name: "תמים נעים", team: "אתק", personal_id: "9679237" },
+    { full_name: "שגיא זוהר", team: "אתק", personal_id: "9365060" },
+    { full_name: "יובל יקותיאל", team: "אתק", personal_id: "9338019" },
+    { full_name: "יוסף ישראל מאיירס", team: "אתק", personal_id: "9374267" },
+    { full_name: "ניר פוני", team: "אתק", personal_id: "9287484" },
+    { full_name: "אייל ברטל", team: "אתק", personal_id: "9327250" },
+    { full_name: "איתן נוי", team: "אתק", personal_id: "9254926" },
+    { full_name: "מיילס רוזנבלום", team: "אתק", personal_id: "9947583" },
+    { full_name: "אורי לביא", team: "אתק", personal_id: "9223847" },
+    { full_name: "אבנר קולודנר", team: "אתק", personal_id: "9074792" },
+    { full_name: "דרור שוקר", team: "אתק", personal_id: "9131984" },
+    { full_name: "אליה עזרא", team: "אתק", personal_id: "9396792" },
+    { full_name: "עידו כהן", team: "אתק", personal_id: "9407286" },
+    { full_name: "עומר בן עזרא", team: "אתק", personal_id: "9268223" },
+    { full_name: "הלל מיטלמן", team: "אתק", personal_id: "9146543" },
+    { full_name: "אופיר פלג", team: "אתק", personal_id: "9384829" },
+    { full_name: "יונתן בנסון", team: "אתק", personal_id: "8879270" },
+    
+    // רתק
+    { full_name: "מקסים ויקול", team: "רתק", personal_id: "9175977" },
+    { full_name: "הלל בן יהודה", team: "רתק", personal_id: "9113651" },
+    { full_name: "הראל טליס", team: "רתק", personal_id: "9350120" },
+    { full_name: "אדם אברמוביץ", team: "רתק", personal_id: "9397348" },
+    { full_name: "שי לבוביץ", team: "רתק", personal_id: "9416291" },
+    { full_name: "נועם דרסלר", team: "רתק", personal_id: "9213987" },
+    { full_name: "מתן סמג׳ה", team: "רתק", personal_id: "9275738" },
+    { full_name: "אביב כהן", team: "רתק", personal_id: "9356591" },
+    { full_name: "ישי אלון", team: "רתק", personal_id: "9379003" },
+    { full_name: "ערן סולומון", team: "רתק", personal_id: "9432893" },
+    { full_name: "ישי דוד", team: "רתק", personal_id: "9077955" },
+    { full_name: "משה בן שושן", team: "רתק", personal_id: "9673275" },
+    { full_name: "מתן זולטק", team: "רתק", personal_id: "9284912" },
+    { full_name: "יובל סוויסה", team: "רתק", personal_id: "9275989" },
+    { full_name: "יונתן חמו", team: "רתק", personal_id: "9357405" },
+    { full_name: "אלישע חיים מרום", team: "רתק", personal_id: "9377885" },
+    { full_name: "עידו פודולר", team: "רתק", personal_id: "9335448" },
+    { full_name: "לידור פיין זילברג", team: "רתק", personal_id: "9389221" },
+    { full_name: "רן אמר", team: "רתק", personal_id: "9324588" },
+    { full_name: "עידו סמג׳ה", team: "רתק", personal_id: "9405143" },
+    { full_name: "שחר ישראלי עמית", team: "רתק", personal_id: "9396864" },
+    { full_name: "מיכאל יעקובר", team: "רתק", personal_id: "9677134" },
+    { full_name: "דניאל וסרמן", team: "רתק", personal_id: "9117735" },
+    
+    // מפלג
+    { full_name: "דניאל רז", team: "מפלג", personal_id: "9148536" },
+    { full_name: "אסף פרלמן", team: "מפלג", personal_id: "9251555" },
+    { full_name: "עומר גינת", team: "מפלג", personal_id: "9249550" },
+    { full_name: "אלעד אזולאי", team: "מפלג", personal_id: "9240244" },
+    { full_name: "יהל איטלי", team: "מפלג", personal_id: "9139582" },
+    { full_name: "אורי שמש", team: "מפלג", personal_id: "9383891" },
+    { full_name: "רז קורצטג", team: "מפלג", personal_id: "9185941" },
+    { full_name: "נועם שר", team: "מפלג", personal_id: "9252070" },
+    { full_name: "יואב רוזנר", team: "מפלג", personal_id: "9316943" }
+  ];
+  
+  export default patientsData;

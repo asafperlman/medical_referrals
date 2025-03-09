@@ -1,17 +1,33 @@
-// medical-referrals/frontend/src/components/ReferralForm.js
+// frontend/src/components/ReferralForm.js
 
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid, FormControl, InputLabel, Select, MenuItem, FormHelperText, Switch, FormControlLabel, Typography, Divider, CircularProgress, Alert } from '@mui/material';
-
-import { DateTimePicker } from '@mui/x-date-pickers';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Grid,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  CircularProgress,
+  Alert,
+  Typography,
+  Box,
+} from '@mui/material';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers';
-import { he } from 'date-fns/locale';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import heLocale from 'date-fns/locale/he';
+import PatientAutocomplete from './PatientAutocomplete';
+import { useAuth } from '../context/AuthContext';
 
 const ReferralForm = ({ open, onClose, onSave, referral = null }) => {
-  const isEditMode = Boolean(referral);
+  const { api } = useAuth();
   
-  // מצב הטופס
+  // מצבים
   const [formData, setFormData] = useState({
     full_name: '',
     personal_id: '',
@@ -20,42 +36,112 @@ const ReferralForm = ({ open, onClose, onSave, referral = null }) => {
     referral_details: '',
     has_documents: false,
     priority: 'medium',
-    status: 'new',
+    status: 'requires_coordination',
     appointment_date: null,
     appointment_path: '',
     appointment_location: '',
     notes: '',
+    reference_date: null,
   });
   
-  // מצב שגיאות ולידציה
   const [errors, setErrors] = useState({});
-  
-  // מצב טעינה
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   
-  // אתחול הטופס במצב עריכה
+  // אופציות
+  const priorityOptions = [
+    { value: 'highest', label: 'דחוף ביותר' },
+    { value: 'urgent', label: 'דחוף' },
+    { value: 'high', label: 'גבוה' },
+    { value: 'medium', label: 'בינוני' },
+    { value: 'low', label: 'נמוך' },
+    { value: 'minimal', label: 'זניח' },
+  ];
+  
+  const statusOptions = [
+    { value: 'appointment_scheduled', label: 'נקבע תור' },
+    { value: 'requires_coordination', label: 'דרוש תיאום' },
+    { value: 'requires_soldier_coordination', label: 'דרוש תיאום עם חייל' },
+    { value: 'waiting_for_medical_date', label: 'ממתין לתאריך מגורם רפואי' },
+    { value: 'completed', label: 'הושלם' },
+    { value: 'cancelled', label: 'בוטל' },
+    { value: 'waiting_for_budget_approval', label: 'ממתין לאישור תקציבי' },
+    { value: 'waiting_for_doctor_referral', label: 'ממתין להפניה מרופא' },
+    { value: 'no_show', label: 'לא הגיע לתור' },
+  ];
+  
+  const referralTypeOptions = [
+    { value: 'specialist', label: 'רופא מומחה' },
+    { value: 'imaging', label: 'בדיקות דימות' },
+    { value: 'lab', label: 'בדיקות מעבדה' },
+    { value: 'procedure', label: 'פרוצדורה' },
+    { value: 'therapy', label: 'טיפול' },
+    { value: 'surgery', label: 'ניתוח' },
+    { value: 'consultation', label: 'ייעוץ' },
+    { value: 'dental', label: 'טיפול שיניים' },
+    { value: 'other', label: 'אחר' },
+  ];
+  
+  const teamOptions = [
+    { value: 'חוד', label: 'חוד' },
+    { value: 'אתק', label: 'אתק' },
+    { value: 'רתק', label: 'רתק' },
+    { value: 'מפלג', label: 'מפלג' },
+  ];
+  
+  // אתחול הטופס בעריכה
   useEffect(() => {
     if (referral) {
-      const formattedReferral = {
-        ...referral,
-        appointment_date: referral.appointment_date ? new Date(referral.appointment_date) : null,
-      };
-      setFormData(formattedReferral);
+      const initialData = { ...referral };
+      
+      // המרת שדות תאריך
+      initialData.appointment_date = initialData.appointment_date ? new Date(initialData.appointment_date) : null;
+      initialData.reference_date = initialData.reference_date ? new Date(initialData.reference_date) : null;
+      
+      setFormData(initialData);
     }
   }, [referral]);
   
-  // טיפול בשינויים בשדות הטופס
+  // טיפול בשינוי שדות
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    const finalValue = type === 'checkbox' ? checked : value;
     
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value,
+    });
+    
+    // נקה שגיאה כאשר השדה משתנה
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: null,
+      });
+    }
+  };
+  
+  // טיפול בשינוי תאריך
+  const handleDateChange = (name, date) => {
+    setFormData({
+      ...formData,
+      [name]: date,
+    });
+    
+    if (errors[name]) {
+      setErrors({
+        ...errors,
+        [name]: null,
+      });
+    }
+  };
+  
+  // עדכון ספציפי של שדה (עבור רכיב ההשלמה האוטומטית)
+  const setFieldValue = (name, value) => {
     setFormData(prev => ({
       ...prev,
-      [name]: finalValue
+      [name]: value
     }));
     
-    // נקה שגיאה בשדה שהשתנה
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -64,349 +150,309 @@ const ReferralForm = ({ open, onClose, onSave, referral = null }) => {
     }
   };
   
-  // טיפול בשינוי תאריך התור
-  const handleDateChange = (date) => {
-    setFormData(prev => ({
-      ...prev,
-      appointment_date: date
-    }));
-    
-    // נקה שגיאה בשדה התאריך
-    if (errors.appointment_date) {
-      setErrors(prev => ({
-        ...prev,
-        appointment_date: null
-      }));
-    }
-  };
-  
   // בדיקת תקינות הטופס
   const validateForm = () => {
     const newErrors = {};
     
-    // שדות חובה
+    // בדיקת שדות חובה
     if (!formData.full_name.trim()) {
-      newErrors.full_name = 'נא להזין שם מלא';
+      newErrors.full_name = 'שם מלא הוא שדה חובה';
     }
     
     if (!formData.personal_id.trim()) {
-      newErrors.personal_id = 'נא להזין מספר אישי';
+      newErrors.personal_id = 'מספר אישי הוא שדה חובה';
     }
     
     if (!formData.team.trim()) {
-      newErrors.team = 'נא להזין צוות';
+      newErrors.team = 'צוות הוא שדה חובה';
     }
     
     if (!formData.referral_type) {
-      newErrors.referral_type = 'נא לבחור סוג הפניה';
+      newErrors.referral_type = 'סוג הפניה הוא שדה חובה';
     }
     
     if (!formData.referral_details.trim()) {
-      newErrors.referral_details = 'נא להזין פרטי הפניה';
+      newErrors.referral_details = 'פרטי הפניה הוא שדה חובה';
     }
     
-    // אם נקבע תור, חובה להזין מיקום
-    if (formData.appointment_date && !formData.appointment_location.trim()) {
-      newErrors.appointment_location = 'נא להזין מיקום התור';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
   
   // שליחת הטופס
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
     // בדיקת תקינות
-    if (!validateForm()) return;
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     
     setLoading(true);
     setSubmitError(null);
     
     try {
-      // הכנת המידע לשמירה
-      const dataToSave = {
-        ...formData,
-        // המרת תאריך לפורמט ISO string אם הוא קיים
-        appointment_date: formData.appointment_date ? formData.appointment_date.toISOString() : null
-      };
-      
-      // שמירת הנתונים דרך ה-callback
-      await onSave(dataToSave);
-      onClose(); // סגירת הדיאלוג
+      await onSave(formData);
+      onClose();
     } catch (error) {
       console.error('Error saving referral:', error);
-      
-      // טיפול בשגיאות מהשרת
-      if (error.response && error.response.data) {
-        // בודק אם יש שגיאת non_field_errors (שגיאת ולידציה כללית)
-        if (error.response.data.non_field_errors) {
-          setSubmitError(error.response.data.non_field_errors[0] || 'אירעה שגיאה בשמירת ההפניה');
-        }
-        // אם יש שגיאות בשדות ספציפיים
-        else if (typeof error.response.data === 'object') {
-          setErrors(error.response.data);
-        } else {
-          // שגיאה כללית
-          setSubmitError(error.response.data.detail || 'אירעה שגיאה בשמירת ההפניה');
-        }
-      } else {
-        setSubmitError('אירעה שגיאה בשמירת ההפניה');
-      }
-      
+      setSubmitError('אירעה שגיאה בשמירת ההפניה. אנא נסה שוב.');
       setLoading(false);
     }
   };
   
-  
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={loading ? undefined : onClose}
       fullWidth
       maxWidth="md"
+      scroll="paper"
+      aria-labelledby="referral-form-title"
     >
-      <DialogTitle>
-        {isEditMode ? 'עריכת הפניה' : 'הוספת הפניה חדשה'}
+      <DialogTitle id="referral-form-title">
+        {referral ? 'עריכת הפניה' : 'הפניה חדשה'}
       </DialogTitle>
       
-      <DialogContent dividers>
-        {submitError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {submitError}
-          </Alert>
-        )}
-        
-        <Grid container spacing={2}>
-          <Grid item xs={12}>
-            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-              פרטי מטופל
-            </Typography>
+      <form onSubmit={handleSubmit}>
+        <DialogContent dividers>
+          {submitError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {submitError}
+            </Alert>
+          )}
+          
+          <Typography variant="h6" gutterBottom>
+            פרטי מטופל
+          </Typography>
+          
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={6}>
+              {/* רכיב ההשלמה האוטומטית לשם מטופל */}
+              <PatientAutocomplete
+                value={formData.full_name}
+                onChange={(value) => setFieldValue('full_name', value)}
+                setFieldValue={setFieldValue}
+                error={!!errors.full_name}
+                helperText={errors.full_name}
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                label="מספר אישי"
+                name="personal_id"
+                value={formData.personal_id}
+                onChange={handleChange}
+                error={!!errors.personal_id}
+                helperText={errors.personal_id}
+                required
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={3}>
+              <TextField
+                fullWidth
+                select
+                label="צוות"
+                name="team"
+                value={formData.team}
+                onChange={handleChange}
+                error={!!errors.team}
+                helperText={errors.team}
+                required
+              >
+                {teamOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={heLocale}>
+                <DateTimePicker
+                  label="תאריך אסמכתא"
+                  value={formData.reference_date}
+                  onChange={(date) => handleDateChange('reference_date', date)}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      error: !!errors.reference_date,
+                      helperText: errors.reference_date,
+                    }
+                  }}
+                />
+              </LocalizationProvider>
+            </Grid>
           </Grid>
           
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              name="full_name"
-              label="שם מלא"
-              value={formData.full_name}
-              onChange={handleChange}
-              fullWidth
-              required
-              error={!!errors.full_name}
-              helperText={errors.full_name}
-              disabled={loading}
-            />
-          </Grid>
+          <Typography variant="h6" gutterBottom>
+            פרטי ההפניה
+          </Typography>
           
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              name="personal_id"
-              label="מספר אישי"
-              value={formData.personal_id}
-              onChange={handleChange}
-              fullWidth
-              required
-              error={!!errors.personal_id}
-              helperText={errors.personal_id}
-              disabled={loading}
-            />
-          </Grid>
-          
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              name="team"
-              label="צוות"
-              value={formData.team}
-              onChange={handleChange}
-              fullWidth
-              required
-              error={!!errors.team}
-              helperText={errors.team}
-              disabled={loading}
-            />
-          </Grid>
-          
-          <Grid item xs={12}>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-              פרטי ההפניה
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} sm={6}>
-            <FormControl fullWidth required error={!!errors.referral_type} disabled={loading}>
-              <InputLabel>סוג הפניה</InputLabel>
-              <Select
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                select
+                label="סוג הפניה"
                 name="referral_type"
                 value={formData.referral_type}
                 onChange={handleChange}
-                label="סוג הפניה"
+                error={!!errors.referral_type}
+                helperText={errors.referral_type}
+                required
               >
-                <MenuItem value="specialist">רופא מומחה</MenuItem>
-                <MenuItem value="imaging">בדיקות דימות</MenuItem>
-                <MenuItem value="lab">בדיקות מעבדה</MenuItem>
-                <MenuItem value="procedure">פרוצדורה</MenuItem>
-                <MenuItem value="other">אחר</MenuItem>
-              </Select>
-              {errors.referral_type && <FormHelperText>{errors.referral_type}</FormHelperText>}
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={12} sm={6}>
-            <TextField
-              name="referral_details"
-              label="הפניה מבוקשת"
-              value={formData.referral_details}
-              onChange={handleChange}
-              fullWidth
-              required
-              error={!!errors.referral_details}
-              helperText={errors.referral_details}
-              disabled={loading}
-            />
-          </Grid>
-          
-          <Grid item xs={12} sm={6}>
-            <FormControl fullWidth required error={!!errors.priority} disabled={loading}>
-              <InputLabel>עדיפות</InputLabel>
-              <Select
-                name="priority"
-                value={formData.priority}
+                {referralTypeOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="הפניה מבוקשת"
+                name="referral_details"
+                value={formData.referral_details}
                 onChange={handleChange}
-                label="עדיפות"
-              >
-                <MenuItem value="low">נמוכה</MenuItem>
-                <MenuItem value="medium">בינונית</MenuItem>
-                <MenuItem value="high">גבוהה</MenuItem>
-                <MenuItem value="urgent">דחופה</MenuItem>
-              </Select>
-              {errors.priority && <FormHelperText>{errors.priority}</FormHelperText>}
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={12} sm={6}>
-            <FormControl fullWidth required error={!!errors.status} disabled={loading}>
-              <InputLabel>סטטוס</InputLabel>
-              <Select
+                error={!!errors.referral_details}
+                helperText={errors.referral_details}
+                required
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                select
+                label="סטטוס"
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                label="סטטוס"
               >
-                <MenuItem value="appointment_scheduled">נקבע תור</MenuItem>
-                <MenuItem value="requires_coordination">דרוש תיאום</MenuItem>
-                <MenuItem value="completed">בוצע הושלם</MenuItem>
-                <MenuItem value="waiting_for_budget_approval">ממתין לאישור תקציבי</MenuItem>
-                <MenuItem value="waiting_for_doctor_referral">ממתין להפניה מרופא</MenuItem>
-              </Select>
-              {errors.status && <FormHelperText>{errors.status}</FormHelperText>}
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={12}>
-            <FormControlLabel
-              control={
-                <Switch
-                  name="has_documents"
-                  checked={formData.has_documents}
-                  onChange={handleChange}
-                  disabled={loading}
-                />
-              }
-              label="יש אסמכתאות / מסמכים"
-            />
-          </Grid>
-          
-          <Grid item xs={12}>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-              פרטי התור
-            </Typography>
-          </Grid>
-          
-          <Grid item xs={12} sm={6} md={4}>
-            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={he}>
-              <DateTimePicker
-                label="תאריך ושעת התור"
-                value={formData.appointment_date}
-                onChange={handleDateChange}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    error={!!errors.appointment_date}
-                    helperText={errors.appointment_date}
-                    disabled={loading}
+                {statusOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                select
+                label="עדיפות"
+                name="priority"
+                value={formData.priority}
+                onChange={handleChange}
+              >
+                {priorityOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.has_documents}
+                    onChange={handleChange}
+                    name="has_documents"
                   />
-                )}
-                disabled={loading}
+                }
+                label="יש אסמכתא"
               />
-            </LocalizationProvider>
+            </Grid>
           </Grid>
           
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              name="appointment_path"
-              label="מסלול"
-              value={formData.appointment_path}
-              onChange={handleChange}
-              fullWidth
-              error={!!errors.appointment_path}
-              helperText={errors.appointment_path}
-              disabled={loading}
-            />
+          <Typography variant="h6" gutterBottom>
+            פרטי התור
+          </Typography>
+          
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={6}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={heLocale}>
+                <DateTimePicker
+                  label="תאריך התור"
+                  value={formData.appointment_date}
+                  onChange={(date) => handleDateChange('appointment_date', date)}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      error: !!errors.appointment_date,
+                      helperText: errors.appointment_date,
+                    }
+                  }}
+                />
+              </LocalizationProvider>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="מיקום התור"
+                name="appointment_location"
+                value={formData.appointment_location}
+                onChange={handleChange}
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="מסלול"
+                name="appointment_path"
+                value={formData.appointment_path}
+                onChange={handleChange}
+              />
+            </Grid>
           </Grid>
           
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              name="appointment_location"
-              label="מיקום התור"
-              value={formData.appointment_location}
-              onChange={handleChange}
-              fullWidth
-              error={!!errors.appointment_location}
-              helperText={errors.appointment_location}
-              disabled={loading}
-            />
-          </Grid>
+          <Typography variant="h6" gutterBottom>
+            הערות
+          </Typography>
           
-          <Grid item xs={12}>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-              הערות
-            </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="הערות"
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+              />
+            </Grid>
           </Grid>
-          
-          <Grid item xs={12}>
-            <TextField
-              name="notes"
-              label="הערות"
-              value={formData.notes}
-              onChange={handleChange}
-              fullWidth
-              multiline
-              rows={3}
-              error={!!errors.notes}
-              helperText={errors.notes}
-              disabled={loading}
-            />
-          </Grid>
-        </Grid>
-      </DialogContent>
-      
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
-          ביטול
-        </Button>
-        <Button 
-          onClick={handleSubmit} 
-          variant="contained" 
-          color="primary" 
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} /> : null}
-        >
-          {loading ? 'שומר...' : isEditMode ? 'עדכן' : 'שמור'}
-        </Button>
-      </DialogActions>
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={onClose} disabled={loading}>
+            ביטול
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
+          >
+            {loading ? 'שומר...' : 'שמור'}
+          </Button>
+        </DialogActions>
+      </form>
     </Dialog>
   );
 };
