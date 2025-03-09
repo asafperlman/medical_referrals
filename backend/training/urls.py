@@ -14,6 +14,7 @@ from .views import (
 
 # Define the router
 router = DefaultRouter()
+
 router.register(r'team', TeamTrainingViewSet)
 router.register(r'soldiers', SoldierViewSet)
 router.register(r'tourniquet', TourniquetTrainingViewSet)

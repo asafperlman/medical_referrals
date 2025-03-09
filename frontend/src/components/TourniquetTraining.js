@@ -113,6 +113,32 @@ const TourniquetTraining = ({ showNotification }) => {
   });
 
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // קבלת נתוני צוותים
+        const teamsData = await apiService.fetchTeams();
+        
+        // קבלת נתוני חיילים
+        const soldiersData = await apiService.fetchSoldiers();
+        
+        // קבלת נתוני תרגולי מחצ"ים
+        const trainingsData = await apiService.fetchTourniquetTrainings();
+        
+        // קבלת חיילים שלא תורגלו החודש
+        const untrainedData = await apiService.getUntrainedSoldiers();
+        
+        setTeams(teamsData);
+        setSoldiers(soldiersData);
+        setTrainings(trainingsData);
+        setUntrainedSoldiers(untrainedData);
+      } catch (error) {
+        console.error('Error fetching training data:', error);
+        apiService.handleApiError(error, showNotification);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchData();
   }, []);
 
@@ -176,7 +202,7 @@ const TourniquetTraining = ({ showNotification }) => {
   const handleSaveTraining = async () => {
     setLoading(true);
     try {
-      // שמירת תרגול חדש
+      // שמירת תרגול חדש דרך ה-API
       const newTraining = await apiService.createTourniquetTraining(formData);
       
       // ריענון הנתונים מהשרת לאחר השמירה

@@ -1,38 +1,89 @@
-// services/apiService.js
+// frontend/src/services/apiService.js
+
 import axios from 'axios';
 
-// קונפיגורציית API
+// הגדרת כתובת בסיס ל-API
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
 
-// פונקציה להוספת headers הכוללים את טוקן האימות
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token'); // או כל מקום אחר שבו שומרים את הטוקן
-  return {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
+// הוספת האינטרספטור להוספת טוקן אוטומטית
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-  };
-};
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-// שירות API
+// שירות API עבור הפעולות השונות במערכת
 const apiService = {
-  // ===== Team Training API =====
+  // === טיפול בשגיאות ===
+  handleApiError: (error, showNotification) => {
+    console.error('API Error:', error);
+    
+    if (error.response) {
+      // שגיאת תשובה מהשרת
+      const status = error.response.status;
+      
+      if (status === 401) {
+        // שגיאת אימות - המשתמש לא מחובר או שפג תוקף הטוקן
+        localStorage.removeItem('token');
+        showNotification('פג תוקף החיבור, יש להתחבר מחדש', 'error');
+        // הפניה לדף התחברות במידת הצורך
+        // window.location.href = '/login';
+      } else if (status === 403) {
+        // אין הרשאות מתאימות
+        showNotification('אין לך הרשאה לבצע פעולה זו', 'error');
+      } else if (status === 400) {
+        // שגיאת וולידציה
+        const errors = error.response.data;
+        let errorMessage = 'שגיאה בנתונים שהוזנו:';
+        
+        // במידה והשגיאה היא אובייקט עם שדות שגיאה
+        if (typeof errors === 'object') {
+          Object.entries(errors).forEach(([field, messages]) => {
+            errorMessage += `\n- ${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`;
+          });
+        } else if (typeof errors === 'string') {
+          errorMessage = errors;
+        }
+        
+        showNotification(errorMessage, 'error');
+      } else {
+        // שגיאות אחרות
+        showNotification(`שגיאה בשרת: ${error.response.data.detail || 'נא לנסות שוב מאוחר יותר'}`, 'error');
+      }
+    } else if (error.request) {
+      // לא התקבלה תשובה מהשרת
+      showNotification('לא ניתן להתחבר לשרת, אנא בדוק את החיבור לאינטרנט', 'error');
+    } else {
+      // שגיאה בהגדרת הבקשה
+      showNotification(`שגיאה בהגדרת הבקשה: ${error.message}`, 'error');
+    }
+    
+    return Promise.reject(error);
+  },
+
+  // === קבלת רשימת צוותים ===
   fetchTeams: async () => {
     try {
-      // הערה: במידה ואין נקודת קצה ספציפית לצוותים, ניתן לחלץ אותם מנתוני הפניות
-      // או ליצור קובץ נתונים סטטי זמני
-      const response = await axios.get(`${API_BASE_URL}/teams/`, getAuthHeaders());
+      // בהנחה שיש נקודת קצה לקבלת רשימת צוותים
+      const response = await axios.get(`${API_BASE_URL}/teams/`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching teams:', error);
-      throw error;
+      // אם אין נקודת קצה ספציפית, נשתמש ברשימה קבועה
+      console.warn('Using hardcoded teams data');
+      return ['חוד', 'אתק', 'רתק', 'מפלג'];
     }
   },
+
+  // === אר"ן צוותי - Team Training ===
   
   fetchTeamTrainings: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/team/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/team/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching team trainings:', error);
@@ -42,7 +93,7 @@ const apiService = {
   
   createTeamTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/team/`, data, getAuthHeaders());
+      const response = await axios.post(`${API_BASE_URL}/trainings/team/`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating team training:', error);
@@ -52,7 +103,7 @@ const apiService = {
   
   updateTeamTraining: async (id, data) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/team/${id}/`, data, getAuthHeaders());
+      const response = await axios.put(`${API_BASE_URL}/trainings/team/${id}/`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating team training:', error);
@@ -62,18 +113,19 @@ const apiService = {
   
   deleteTeamTraining: async (id) => {
     try {
-      await axios.delete(`${API_BASE_URL}/trainings/team/${id}/`, getAuthHeaders());
+      await axios.delete(`${API_BASE_URL}/trainings/team/${id}/`);
       return true;
     } catch (error) {
       console.error('Error deleting team training:', error);
       throw error;
     }
   },
+
+  // === חיילים - Soldiers ===
   
-  // ===== Tourniquet Training API =====
   fetchSoldiers: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching soldiers:', error);
@@ -81,9 +133,11 @@ const apiService = {
     }
   },
   
+  // === חסמי עורקים - Tourniquet Training ===
+  
   fetchTourniquetTrainings: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/tourniquet/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/tourniquet/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching tourniquet trainings:', error);
@@ -93,7 +147,7 @@ const apiService = {
   
   createTourniquetTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/`, data, getAuthHeaders());
+      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating tourniquet training:', error);
@@ -101,49 +155,19 @@ const apiService = {
     }
   },
   
-  updateTourniquetTraining: async (id, data) => {
-    try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/tourniquet/${id}/`, data, getAuthHeaders());
-      return response.data;
-    } catch (error) {
-      console.error('Error updating tourniquet training:', error);
-      throw error;
-    }
-  },
-  
-  deleteTourniquetTraining: async (id) => {
-    try {
-      await axios.delete(`${API_BASE_URL}/trainings/tourniquet/${id}/`, getAuthHeaders());
-      return true;
-    } catch (error) {
-      console.error('Error deleting tourniquet training:', error);
-      throw error;
-    }
-  },
-  
   bulkCreateTourniquetTraining: async (dataArray) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/bulk_create/`, dataArray, getAuthHeaders());
+      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/bulk_create/`, dataArray);
       return response.data;
     } catch (error) {
-      console.error('Error creating bulk tourniquet trainings:', error);
-      throw error;
-    }
-  },
-  
-  getSoldierStats: async (soldierId) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/${soldierId}/stats/`, getAuthHeaders());
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching soldier stats:', error);
+      console.error('Error bulk creating tourniquet trainings:', error);
       throw error;
     }
   },
   
   getUntrainedSoldiers: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/untrained_this_month/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/untrained_this_month/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching untrained soldiers:', error);
@@ -151,10 +175,21 @@ const apiService = {
     }
   },
   
-  // ===== Medics Training API =====
+  getSoldierStats: async (soldierId) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/${soldierId}/stats/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching soldier stats:', error);
+      throw error;
+    }
+  },
+  
+  // === חובשים - Medics ===
+  
   fetchMedics: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medics/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/medics/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching medics:', error);
@@ -162,9 +197,11 @@ const apiService = {
     }
   },
   
+  // === תרגולי חובשים - Medic Training ===
+  
   fetchMedicTrainings: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medic-training/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/medic-training/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching medic trainings:', error);
@@ -174,7 +211,7 @@ const apiService = {
   
   createMedicTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/medic-training/`, data, getAuthHeaders());
+      const response = await axios.post(`${API_BASE_URL}/trainings/medic-training/`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating medic training:', error);
@@ -182,9 +219,19 @@ const apiService = {
     }
   },
   
+  bulkCreateMedicTraining: async (dataArray) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/trainings/medic-training/bulk_create/`, dataArray);
+      return response.data;
+    } catch (error) {
+      console.error('Error bulk creating medic trainings:', error);
+      throw error;
+    }
+  },
+  
   updateMedicTraining: async (id, data) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/medic-training/${id}/`, data, getAuthHeaders());
+      const response = await axios.put(`${API_BASE_URL}/trainings/medic-training/${id}/`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating medic training:', error);
@@ -192,29 +239,9 @@ const apiService = {
     }
   },
   
-  deleteMedicTraining: async (id) => {
-    try {
-      await axios.delete(`${API_BASE_URL}/trainings/medic-training/${id}/`, getAuthHeaders());
-      return true;
-    } catch (error) {
-      console.error('Error deleting medic training:', error);
-      throw error;
-    }
-  },
-  
-  bulkCreateMedicTraining: async (dataArray) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/medic-training/bulk_create/`, dataArray, getAuthHeaders());
-      return response.data;
-    } catch (error) {
-      console.error('Error creating bulk medic trainings:', error);
-      throw error;
-    }
-  },
-  
   getMedicStats: async (medicId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medics/${medicId}/stats/`, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/medics/${medicId}/stats/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching medic stats:', error);
@@ -222,53 +249,15 @@ const apiService = {
     }
   },
   
-  getUntrainedMedics: async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medics/untrained_this_month/`, getAuthHeaders());
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching untrained medics:', error);
-      throw error;
-    }
-  },
+  // === סטטיסטיקות - Statistics ===
   
-  // ===== Analysis API =====
-  fetchTrainingStats: async (params = {}) => {
+  fetchTrainingStats: async () => {
     try {
-      const queryParams = new URLSearchParams();
-      
-      // הוסף פרמטרי סינון לשאילתא אם קיימים
-      if (params.team) queryParams.append('team', params.team);
-      if (params.period) queryParams.append('period', params.period);
-      
-      const url = `${API_BASE_URL}/trainings/stats/?${queryParams.toString()}`;
-      const response = await axios.get(url, getAuthHeaders());
+      const response = await axios.get(`${API_BASE_URL}/trainings/stats/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching training stats:', error);
       throw error;
-    }
-  },
-  
-  // ===== כללי =====
-  // טיפול בשגיאות כללי שניתן להשתמש בו בכל הקומפוננטות
-  handleApiError: (error, setNotification) => {
-    if (error.response) {
-      // השרת החזיר תשובה עם קוד שגיאה
-      if (error.response.status === 401) {
-        setNotification('אינך מחובר למערכת. נא להתחבר מחדש.', 'error');
-        // הפנייה לדף ההתחברות או פתיחת דיאלוג התחברות
-      } else if (error.response.status === 403) {
-        setNotification('אין לך הרשאה לבצע פעולה זו.', 'error');
-      } else {
-        setNotification('שגיאה: ' + (error.response.data.detail || 'קרתה תקלה'), 'error');
-      }
-    } else if (error.request) {
-      // הבקשה נשלחה אך לא התקבלה תשובה
-      setNotification('לא ניתן להתחבר לשרת. נא לבדוק את החיבור לאינטרנט.', 'error');
-    } else {
-      // שגיאה בהגדרת הבקשה
-      setNotification('שגיאה בבקשה: ' + error.message, 'error');
     }
   }
 };

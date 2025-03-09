@@ -776,3 +776,52 @@ class TourniquetTrainingViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(sorted_trainings, many=True)
         return Response(serializer.data)
+    
+@action(detail=False, methods=['post'])
+def bulk_create(self, request):
+    """
+    יצירת מספר רשומות תרגול בבת אחת
+    """
+    serializer = self.get_serializer(data=request.data, many=True)
+    serializer.is_valid(raise_exception=True)
+    
+    # Add user to each record
+    instances = []
+    for item in serializer.validated_data:
+        instances.append(TourniquetTraining(
+            **item,
+            created_by=request.user,
+            last_updated_by=request.user
+        ))
+    
+    # Bulk create the records
+    TourniquetTraining.objects.bulk_create(instances)
+    
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+@action(detail=False, methods=['get'])
+def untrained_this_month(self, request):
+    """
+    קבלת רשימת חיילים שלא תורגלו החודש
+    """
+    now = timezone.now().date()
+    first_day_of_month = now.replace(day=1)
+    
+    # Get current month trainings
+    current_month_trainings = TourniquetTraining.objects.filter(
+        training_date__gte=first_day_of_month
+    )
+    
+    # Get soldier IDs that have trainings this month
+    trained_soldier_ids = current_month_trainings.values_list('soldier_id', flat=True).distinct()
+    
+    # Filter soldiers that don't have trainings this month
+    untrained_soldiers = Soldier.objects.exclude(id__in=trained_soldier_ids)
+    
+    page = self.paginate_queryset(untrained_soldiers)
+    if page is not None:
+        serializer = SoldierSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+        
+    serializer = SoldierSerializer(untrained_soldiers, many=True)
+    return Response(serializer.data)
