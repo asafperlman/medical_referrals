@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -27,28 +26,18 @@ import {
   Select,
   MenuItem,
   Chip,
-  Rating,
   Avatar,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Alert,
-  CircularProgress,
-  Backdrop,
   FormControlLabel,
-  Checkbox,
-  Stack,
-  Badge,
+  Switch,
+  CircularProgress,
   InputAdornment,
+  Checkbox,
   Stepper,
   Step,
   StepLabel,
-  StepContent,
-  Switch,
-  ToggleButton,
   ToggleButtonGroup,
+  ToggleButton,
+  Divider
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -61,73 +50,16 @@ import {
   Error as ErrorIcon,
   AccessTime as AccessTimeIcon,
   Search as SearchIcon,
-  FilterList as FilterListIcon,
   Person as PersonIcon,
   Group as GroupIcon,
   CalendarToday as CalendarTodayIcon,
-  Timer as TimerIcon,
   Save as SaveIcon,
   ArrowForward as ArrowForwardIcon,
+  History as HistoryIcon,
+  TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 
-// API configuration
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
-
-// API service functions
-const apiService = {
-  // Team Training API
-  fetchTeams: async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/teams/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching teams:', error);
-      throw error;
-    }
-  },
-  
-  // Soldier API
-  fetchSoldiers: async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching soldiers:', error);
-      throw error;
-    }
-  },
-  
-  // Tourniquet Training API
-  fetchTourniquetTrainings: async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/tourniquet/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching tourniquet trainings:', error);
-      throw error;
-    }
-  },
-  
-  createTourniquetTraining: async (data) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/`, data);
-      return response.data;
-    } catch (error) {
-      console.error('Error creating tourniquet training:', error);
-      throw error;
-    }
-  },
-  
-  bulkCreateTourniquetTrainings: async (dataArray) => {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/bulk_create/`, dataArray);
-      return response.data;
-    } catch (error) {
-      console.error('Error bulk creating tourniquet trainings:', error);
-      throw error;
-    }
-  }
-};
+import apiService from '../services/apiService';
 
 // Helper function to format date
 const formatDate = (dateString) => {
@@ -144,12 +76,12 @@ const getCurrentMonthYear = () => {
   };
 };
 
+// רכיב תרגול מחצ"ים (חסמי עורקים)
 const TourniquetTraining = ({ showNotification }) => {
   const [trainings, setTrainings] = useState([]);
   const [soldiers, setSoldiers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [openForm, setOpenForm] = useState(false);
   const [openGroupTrainingForm, setOpenGroupTrainingForm] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState('');
@@ -159,8 +91,19 @@ const TourniquetTraining = ({ showNotification }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [openSoldierDetails, setOpenSoldierDetails] = useState(false);
   const [selectedSoldier, setSelectedSoldier] = useState(null);
+  const [untrainedSoldiers, setUntrainedSoldiers] = useState([]);
   
-  // Data for individual training
+  // מידע בסיסי לאימון קבוצתי
+  const [groupFormData, setGroupFormData] = useState({
+    training_date: new Date().toISOString().split('T')[0],
+    team: '',
+    general_notes: ''
+  });
+  
+  // מידע ספציפי לחייל
+  const [soldierTrainingData, setSoldierTrainingData] = useState({});
+  
+  // מידע על חייל בודד
   const [formData, setFormData] = useState({
     soldier_id: '',
     training_date: '',
@@ -169,96 +112,51 @@ const TourniquetTraining = ({ showNotification }) => {
     notes: '',
   });
 
-  // Data for group training
-  const [groupFormData, setGroupFormData] = useState({
-    training_date: new Date().toISOString().split('T')[0],
-    team: '',
-    general_notes: ''
-  });
-  
-  // Data for individual soldier performance in group training
-  const [soldierTrainingData, setSoldierTrainingData] = useState({});
-
-  // Load initial data
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Try to fetch from API first
-        let teamsData = [];
-        let soldiersData = [];
-        let trainingsData = [];
-        
-        try {
-          teamsData = await apiService.fetchTeams();
-        } catch (err) {
-          console.warn('Error fetching teams, using default list:', err);
-          teamsData = ['חוד', 'אתק', 'רתק', 'מפלג'];
-        }
-        
-        try {
-          soldiersData = await apiService.fetchSoldiers();
-        } catch (err) {
-          console.warn('Error fetching soldiers:', err);
-          // Use mock data as fallback
-          soldiersData = [
-            { id: 1, name: 'נועם עקה זוהר', team: 'חוד', personal_id: '9114251' },
-            { id: 2, name: 'נהר שדמי', team: 'חוד', personal_id: '9292413' },
-            { id: 3, name: 'יואב אטלן', team: 'חוד', personal_id: '9067695' },
-            { id: 4, name: 'בן שטינברג', team: 'חוד', personal_id: '9180189' },
-            { id: 5, name: 'יהלי חמו', team: 'חוד', personal_id: '9407190' },
-          ];
-        }
-        
-        try {
-          trainingsData = await apiService.fetchTourniquetTrainings();
-        } catch (err) {
-          console.warn('Error fetching trainings:', err);
-          // Use mock data as fallback
-          trainingsData = [
-            { id: 1, soldier_id: 1, training_date: '2025-02-05', cat_time: '28', passed: true, notes: '' },
-            { id: 2, soldier_id: 2, training_date: '2025-02-07', cat_time: '25', passed: true, notes: '' },
-          ];
-        }
-        
-        setTeams(Array.isArray(teamsData) ? teamsData : ['חוד', 'אתק', 'רתק', 'מפלג']);
-        setSoldiers(soldiersData);
-        setTrainings(trainingsData);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching training data:', err);
-        setError('שגיאה בטעינת נתונים. נסה שוב.');
-        // Use mock data as fallback if API fails
-        setTeams(['חוד', 'אתק', 'רתק', 'מפלג']);
-        setSoldiers([]);
-        setTrainings([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchData();
   }, []);
 
-  // Helper functions to get soldier trainings and check if trained this month
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // קבלת נתוני צוותים - אם אין API ספציפי, ניתן להשתמש בערכים קבועים
+      let teamsData;
+      try {
+        teamsData = await apiService.fetchTeams();
+      } catch (error) {
+        // אם אין נקודת קצה לצוותים, השתמש בערכים קבועים
+        teamsData = ['חוד', 'אתק', 'רתק', 'מפלג'];
+        console.log('Using hardcoded teams data');
+      }
+
+      // קבלת נתוני חיילים
+      const soldiersData = await apiService.fetchSoldiers();
+      
+      // קבלת נתוני תרגולי מחצ"ים
+      const trainingsData = await apiService.fetchTourniquetTrainings();
+      
+      // קבלת חיילים שלא תורגלו החודש
+      const untrainedData = await apiService.getUntrainedSoldiers();
+      
+      setTeams(teamsData);
+      setSoldiers(soldiersData);
+      setTrainings(trainingsData);
+      setUntrainedSoldiers(untrainedData);
+    } catch (error) {
+      console.error('Error fetching training data:', error);
+      apiService.handleApiError(error, showNotification);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getSoldierTrainings = (soldierId) => trainings.filter((t) => t.soldier_id === soldierId);
 
   const isTrainedThisMonth = (soldierId) => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    return trainings.some((t) => {
-      const trainingDate = new Date(t.training_date);
-      return (
-        t.soldier_id === soldierId &&
-        trainingDate.getMonth() === currentMonth &&
-        trainingDate.getFullYear() === currentYear
-      );
-    });
+    // בדוק אם החייל קיים ברשימת החיילים שלא תורגלו
+    return !untrainedSoldiers.some(s => s.id === soldierId);
   };
 
-  // Handle individual training form
   const handleAddTraining = (soldier) => {
     setFormData({
       soldier_id: soldier.id,
@@ -275,45 +173,26 @@ const TourniquetTraining = ({ showNotification }) => {
     setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
   };
 
-  // Save individual training
   const handleSaveTraining = async () => {
-    if (!formData.cat_time) {
-      showNotification('יש להזין זמן CAT', 'error');
-      return;
-    }
-    
+    setLoading(true);
     try {
-      setLoading(true);
+      // שמירת תרגול חדש
+      const newTraining = await apiService.createTourniquetTraining(formData);
       
-      let newTraining;
+      // ריענון הנתונים מהשרת לאחר השמירה
+      await fetchData();
       
-      try {
-        // Try to save to API
-        newTraining = await apiService.createTourniquetTraining(formData);
-      } catch (err) {
-        // If API call fails, create a local mock object
-        console.error('Error saving to API, creating local data instead:', err);
-        newTraining = {
-          id: Math.max(0, ...trainings.map((t) => t.id || 0)) + 1,
-          ...formData,
-          soldier_name: soldiers.find(s => s.id === formData.soldier_id)?.name,
-          soldier_team: soldiers.find(s => s.id === formData.soldier_id)?.team
-        };
-      }
-      
-      // Update local state with the new training
-      setTrainings(prevTrainings => [...prevTrainings, newTraining]);
       setOpenForm(false);
-      showNotification('התרגול נשמר בהצלחה', 'success');
+      showNotification('הנתונים נשמרו בהצלחה');
     } catch (error) {
       console.error('Error saving training:', error);
-      showNotification('שגיאה בשמירת הנתונים', 'error');
+      apiService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
   };
-
-  // Group training handlers
+  
+  // פתיחת טופס תרגול קבוצתי
   const handleOpenGroupTraining = () => {
     setGroupFormData({
       training_date: new Date().toISOString().split('T')[0],
@@ -326,7 +205,8 @@ const TourniquetTraining = ({ showNotification }) => {
     setActiveStep(0);
     setOpenGroupTrainingForm(true);
   };
-
+  
+  // טיפול בשינוי בטופס הקבוצתי
   const handleGroupFormChange = (e) => {
     const { name, value } = e.target;
     setGroupFormData({ ...groupFormData, [name]: value });
@@ -336,7 +216,8 @@ const TourniquetTraining = ({ showNotification }) => {
       setSelectedSoldiers([]);
     }
   };
-
+  
+  // סיום שלב 1 - מעבר לבחירת חיילים
   const handleNextToSelectSoldiers = () => {
     if (!groupFormData.team || !groupFormData.training_date) {
       showNotification('אנא בחר צוות ותאריך', 'error');
@@ -344,7 +225,8 @@ const TourniquetTraining = ({ showNotification }) => {
     }
     setActiveStep(1);
   };
-
+  
+  // טיפול בבחירת חיילים
   const handleSelectSoldier = (soldier) => {
     if (selectedSoldiers.includes(soldier.id)) {
       setSelectedSoldiers(selectedSoldiers.filter(id => id !== soldier.id));
@@ -352,14 +234,15 @@ const TourniquetTraining = ({ showNotification }) => {
       setSelectedSoldiers([...selectedSoldiers, soldier.id]);
     }
   };
-
+  
+  // סיום שלב 2 - מעבר להזנת נתונים
   const handleNextToEnterData = () => {
     if (selectedSoldiers.length === 0) {
       showNotification('אנא בחר לפחות חייל אחד', 'error');
       return;
     }
     
-    // Initialize data for each selected soldier
+    // יצירת אובייקט עם נתונים ריקים לכל חייל שנבחר
     const initialData = {};
     selectedSoldiers.forEach(soldierId => {
       initialData[soldierId] = {
@@ -372,20 +255,21 @@ const TourniquetTraining = ({ showNotification }) => {
     setSoldierTrainingData(initialData);
     setActiveStep(2);
   };
-
+  
+  // עדכון נתוני חייל ספציפי
   const handleSoldierDataChange = (soldierId, field, value) => {
     setSoldierTrainingData(prev => ({
       ...prev,
       [soldierId]: {
         ...prev[soldierId],
-        [field]: value
+        [field]: field === 'passed' ? value : value
       }
     }));
   };
-
-  // Save group training data
+  
+  // שמירת נתוני התרגול הקבוצתי
   const handleSaveGroupTraining = async () => {
-    // Check if all CAT times are entered
+    // בדיקה שהוזנו זמני CAT לכל החיילים
     const missingData = selectedSoldiers.some(id => !soldierTrainingData[id].cat_time);
     
     if (missingData) {
@@ -393,11 +277,10 @@ const TourniquetTraining = ({ showNotification }) => {
       return;
     }
     
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      // Prepare training data for all selected soldiers
-      const trainingDataArray = selectedSoldiers.map(soldierId => ({
+      // יצירת רשומות אימון לכל אחד מהחיילים
+      const trainingData = selectedSoldiers.map(soldierId => ({
         soldier_id: soldierId,
         training_date: groupFormData.training_date,
         cat_time: soldierTrainingData[soldierId].cat_time,
@@ -405,41 +288,53 @@ const TourniquetTraining = ({ showNotification }) => {
         notes: soldierTrainingData[soldierId].notes || groupFormData.general_notes
       }));
       
-      let newTrainings = [];
+      // שמירת כל התרגולים בשרת
+      await apiService.bulkCreateTourniquetTraining(trainingData);
       
-      try {
-        // Try to save to API
-        newTrainings = await apiService.bulkCreateTourniquetTrainings(trainingDataArray);
-      } catch (err) {
-        // If API call fails, create local mock objects
-        console.error('Error saving to API, creating local data instead:', err);
-        newTrainings = trainingDataArray.map((data, index) => ({
-          id: Math.max(0, ...trainings.map(t => t.id || 0)) + 1 + index,
-          ...data,
-          soldier_name: soldiers.find(s => s.id === data.soldier_id)?.name,
-          soldier_team: soldiers.find(s => s.id === data.soldier_id)?.team
-        }));
-      }
+      // ריענון נתונים מהשרת
+      await fetchData();
       
-      // Update local state with the new trainings
-      setTrainings(prevTrainings => [...prevTrainings, ...newTrainings]);
       setOpenGroupTrainingForm(false);
       showNotification(`נשמרו נתוני תרגול עבור ${selectedSoldiers.length} חיילים`, 'success');
     } catch (error) {
       console.error('Error saving group training:', error);
-      showNotification('שגיאה בשמירת נתוני התרגול', 'error');
+      apiService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle opening soldier details
-  const handleOpenSoldierDetails = (soldier) => {
-    setSelectedSoldier(soldier);
-    setOpenSoldierDetails(true);
+  const filteredSoldiers = soldiers.filter(soldier => {
+    const matchesTeam = filterTeam ? soldier.team === filterTeam : true;
+    const matchesSearch = searchQuery === '' || 
+      soldier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      soldier.personal_id.includes(searchQuery);
+    
+    return matchesTeam && matchesSearch;
+  });
+
+  // פתיחת פרטי חייל ספציפי
+  const handleOpenSoldierDetails = async (soldier) => {
+    setLoading(true);
+    try {
+      // קבלת נתוני החייל מהשרת
+      const soldierDetails = await apiService.getSoldierStats(soldier.id);
+      setSelectedSoldier({...soldier, stats: soldierDetails});
+      setOpenSoldierDetails(true);
+    } catch (error) {
+      console.error('Error fetching soldier details:', error);
+      apiService.handleApiError(error, showNotification);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleRefresh = async () => {
+    await fetchData();
+    showNotification('הנתונים עודכנו בהצלחה', 'success');
   };
 
-  // Calculate average CAT time for a soldier
+  // חישוב ממוצע זמן הנחת חסם עורקים לחייל
   const calculateAverageCatTime = (soldierId) => {
     const soldierTrainings = getSoldierTrainings(soldierId);
     if (soldierTrainings.length === 0) return 0;
@@ -448,7 +343,7 @@ const TourniquetTraining = ({ showNotification }) => {
     return (totalTime / soldierTrainings.length).toFixed(1);
   };
 
-  // Calculate pass rate for a soldier
+  // חישוב אחוז הצלחה לחייל
   const calculatePassRate = (soldierId) => {
     const soldierTrainings = getSoldierTrainings(soldierId);
     if (soldierTrainings.length === 0) return 0;
@@ -457,24 +352,7 @@ const TourniquetTraining = ({ showNotification }) => {
     return ((passedCount / soldierTrainings.length) * 100).toFixed(0);
   };
 
-  // Get list of soldiers who haven't trained this month
-  const getUntrained = () => {
-    return soldiers.filter(soldier => !isTrainedThisMonth(soldier.id));
-  };
-
-  // Filter soldiers based on search and team filter
-  const filteredSoldiers = useMemo(() => {
-    return soldiers.filter(soldier => {
-      const matchesTeam = filterTeam ? soldier.team === filterTeam : true;
-      const matchesSearch = searchQuery === '' || 
-        soldier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        soldier.personal_id.includes(searchQuery);
-      
-      return matchesTeam && matchesSearch;
-    });
-  }, [soldiers, filterTeam, searchQuery]);
-
-  if (loading && soldiers.length === 0) {
+  if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
         <CircularProgress />
@@ -489,6 +367,19 @@ const TourniquetTraining = ({ showNotification }) => {
           תרגול מחצ"ים - חסמי עורקים (CAT)
         </Typography>
         <Box>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<RefreshIcon />} 
+            onClick={handleRefresh}
+            sx={{ 
+              mr: 1,
+              borderRadius: 2, 
+              textTransform: 'none',
+            }}
+          >
+            רענן
+          </Button>
           <Button 
             variant="outlined" 
             color="primary" 
@@ -520,20 +411,6 @@ const TourniquetTraining = ({ showNotification }) => {
           </Button>
         </Box>
       </Box>
-
-      {error && (
-        <Alert 
-          severity="error" 
-          sx={{ mb: 2 }}
-          action={
-            <Button color="inherit" size="small" onClick={() => window.location.reload()}>
-              נסה שוב
-            </Button>
-          }
-        >
-          {error}
-        </Alert>
-      )}
 
       <Grid container spacing={2} mb={2}>
         <Grid item xs={12} md={8}>
@@ -628,7 +505,7 @@ const TourniquetTraining = ({ showNotification }) => {
               <Box pr={1}>
                 <Chip 
                   icon={<WarningIcon fontSize="small" />} 
-                  label={`${getUntrained().length} לא תורגלו החודש`} 
+                  label={`${untrainedSoldiers.length} לא תורגלו החודש`} 
                   color="warning" 
                   size="small"
                   sx={{ fontWeight: 'medium' }} 
@@ -807,10 +684,10 @@ const TourniquetTraining = ({ showNotification }) => {
           >
             <Box p={0.5} bgcolor="#ffebee" borderBottom="1px solid #ffcdd2">
               <Typography variant="subtitle2" sx={{ p: 1.5, fontWeight: 'bold', color: 'error.main', display: 'flex', alignItems: 'center' }}>
-                <ErrorIcon sx={{ mr: 1 }} /> חיילים שלא ביצעו תרגול החודש ({getUntrained().length})
+                <ErrorIcon sx={{ mr: 1 }} /> חיילים שלא ביצעו תרגול החודש ({untrainedSoldiers.length})
               </Typography>
             </Box>
-            {getUntrained().length === 0 ? (
+            {untrainedSoldiers.length === 0 ? (
               <Box sx={{ p: 3, textAlign: 'center' }}>
                 <Typography color="success.main" variant="body1" sx={{ fontWeight: 'medium' }}>
                   כל החיילים ביצעו תרגול החודש! 👍
@@ -819,7 +696,7 @@ const TourniquetTraining = ({ showNotification }) => {
             ) : (
               <Box sx={{ p: 2 }}>
                 <Grid container spacing={1}>
-                  {getUntrained().map(soldier => (
+                  {untrainedSoldiers.map(soldier => (
                     <Grid item xs={12} sm={6} md={4} key={soldier.id}>
                       <Card 
                         variant="outlined" 
@@ -1019,7 +896,7 @@ const TourniquetTraining = ({ showNotification }) => {
                             תורגלו החודש
                           </Typography>
                           <Typography variant="h4" fontWeight="bold">
-                            {soldiers.filter((s) => isTrainedThisMonth(s.id)).length}
+                            {soldiers.length - untrainedSoldiers.length}
                           </Typography>
                         </Paper>
                       </Grid>
@@ -1041,7 +918,7 @@ const TourniquetTraining = ({ showNotification }) => {
                             לא תורגלו החודש
                           </Typography>
                           <Typography variant="h4" fontWeight="bold">
-                            {soldiers.filter((s) => !isTrainedThisMonth(s.id)).length}
+                            {untrainedSoldiers.length}
                           </Typography>
                         </Paper>
                       </Grid>
@@ -1061,13 +938,13 @@ const TourniquetTraining = ({ showNotification }) => {
                         />
                         <CircularProgress
                           variant="determinate"
-                          value={Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / (soldiers.length || 1)) * 100) || 0}
+                          value={Math.round(((soldiers.length - untrainedSoldiers.length) / soldiers.length) * 100)}
                           size={150}
                           thickness={5}
                           sx={{ 
                             color: 
-                              Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / (soldiers.length || 1)) * 100) >= 80 ? 'success.main' : 
-                              Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / (soldiers.length || 1)) * 100) >= 50 ? 'warning.main' : 'error.main',
+                              Math.round(((soldiers.length - untrainedSoldiers.length) / soldiers.length) * 100) >= 80 ? 'success.main' : 
+                              Math.round(((soldiers.length - untrainedSoldiers.length) / soldiers.length) * 100) >= 50 ? 'warning.main' : 'error.main',
                             position: 'absolute',
                             top: 0,
                             left: 0
@@ -1091,7 +968,7 @@ const TourniquetTraining = ({ showNotification }) => {
                             color="text.primary"
                             fontWeight="bold"
                           >
-                            {Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / (soldiers.length || 1)) * 100) || 0}%
+                            {Math.round(((soldiers.length - untrainedSoldiers.length) / soldiers.length) * 100)}%
                           </Typography>
                         </Box>
                       </Box>
@@ -1425,7 +1302,11 @@ const TourniquetTraining = ({ showNotification }) => {
                   variant="outlined"
                   color="primary"
                   onClick={() => {
-                    setSelectedSoldiers(soldiers.filter(s => s.team === groupFormData.team && !isTrainedThisMonth(s.id)).map(s => s.id));
+                    setSelectedSoldiers(
+                      soldiers
+                        .filter(s => s.team === groupFormData.team && untrainedSoldiers.some(u => u.id === s.id))
+                        .map(s => s.id)
+                    );
                   }}
                   startIcon={<WarningIcon />}
                   sx={{ mr: 1 }}
@@ -1436,7 +1317,11 @@ const TourniquetTraining = ({ showNotification }) => {
                   variant="outlined"
                   color="primary"
                   onClick={() => {
-                    setSelectedSoldiers(soldiers.filter(s => s.team === groupFormData.team).map(s => s.id));
+                    setSelectedSoldiers(
+                      soldiers
+                        .filter(s => s.team === groupFormData.team)
+                        .map(s => s.id)
+                    );
                   }}
                   startIcon={<GroupIcon />}
                 >
@@ -1621,288 +1506,243 @@ const TourniquetTraining = ({ showNotification }) => {
               <Box display="flex" alignItems="center">
                 <PersonIcon sx={{ mr: 1 }} />
                 <Typography variant="h6">
-                  פרטי פרטי תרגול - {selectedSoldier.name}
+                  פרטי תרגול - {selectedSoldier.name}
                 </Typography>
               </Box>
             </DialogTitle>
             <DialogContent dividers>
               <Grid container spacing={3}>
                 <Grid item xs={12} md={4}>
-                  <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                  <Card sx={{ mb: 2, borderRadius: 2 }}>
+                    <CardHeader 
+                      title="פרטי חייל" 
+                      titleTypographyProps={{ fontWeight: 'bold' }}
+                      sx={{ 
+                        bgcolor: '#f5f5f5', 
+                        borderBottom: '1px solid #e0e0e0',
+                        p: 2
+                      }}
+                    />
                     <CardContent>
-                      <Typography variant="h6" fontWeight="bold" gutterBottom>
-                        פרטים אישיים
-                      </Typography>
-                      <List>
-                        <ListItem sx={{ px: 0 }}>
-                          <ListItemIcon>
-                            <PersonIcon />
-                          </ListItemIcon>
-                          <ListItemText 
-                            primary="שם מלא" 
-                            secondary={selectedSoldier.name} 
-                            primaryTypographyProps={{ 
-                              variant: 'body2', 
-                              color: 'text.secondary' 
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Avatar 
+                            sx={{ 
+                              width: 64, 
+                              height: 64, 
+                              mr: 2,
+                              fontSize: '1.5rem',
+                              bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
+                                      selectedSoldier.team === 'רתק' ? '#c8e6c9' :
+                                      selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7'
                             }}
-                            secondaryTypographyProps={{ 
-                              variant: 'body1', 
-                              fontWeight: 'medium' 
-                            }}
-                          />
-                        </ListItem>
-                        <ListItem sx={{ px: 0 }}>
-                          <ListItemIcon>
-                            <GroupIcon />
-                          </ListItemIcon>
-                          <ListItemText 
-                            primary="צוות" 
-                            secondary={
-                              <Chip 
-                                label={selectedSoldier.team} 
-                                size="small" 
-                                sx={{ 
-                                  bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
-                                          selectedSoldier.team === 'רתק' ? '#c8e6c9' :
-                                          selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                  color: 'rgba(0, 0, 0, 0.7)',
-                                  fontWeight: 'bold'
-                                }} 
-                              />
-                            } 
-                            primaryTypographyProps={{ 
-                              variant: 'body2', 
-                              color: 'text.secondary' 
-                            }}
-                          />
-                        </ListItem>
-                        <ListItem sx={{ px: 0 }}>
-                          <ListItemIcon>
-                            <Badge 
-                              badgeContent={selectedSoldier.personal_id} 
-                              color="primary"
-                              sx={{ 
-                                '& .MuiBadge-badge': { 
-                                  position: 'static',
-                                  transform: 'none',
-                                  fontSize: '0.75rem',
-                                  padding: '0 6px',
-                                  height: '18px',
-                                  minWidth: '18px'
-                                } 
-                              }}
-                            >
-                              <PersonIcon sx={{ mr: 2 }} />
-                            </Badge>
-                          </ListItemIcon>
-                          <ListItemText 
-                            primary="מספר אישי" 
-                            secondary={selectedSoldier.personal_id} 
-                            primaryTypographyProps={{ 
-                              variant: 'body2', 
-                              color: 'text.secondary' 
-                            }}
-                            secondaryTypographyProps={{ 
-                              variant: 'body1', 
-                              fontWeight: 'medium' 
-                            }}
-                          />
-                        </ListItem>
-                      </List>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card variant="outlined" sx={{ borderRadius: 2, mt: 2 }}>
-                    <CardContent>
-                      <Typography variant="h6" fontWeight="bold" gutterBottom>
-                        נתוני תרגול
-                      </Typography>
-                      <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                          <Box sx={{ textAlign: 'center', p: 1 }}>
-                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                              זמן CAT ממוצע
-                            </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <AccessTimeIcon sx={{ mr: 0.5, color: 'text.secondary' }} />
-                              <Typography variant="h5" fontWeight="bold">
-                                {calculateAverageCatTime(selectedSoldier.id)}
-                              </Typography>
-                            </Box>
-                            <Typography variant="caption" color="text.secondary">
-                              שניות
-                            </Typography>
-                          </Box>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Box sx={{ textAlign: 'center', p: 1 }}>
-                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                              אחוז מעבר
-                            </Typography>
-                            <Typography 
-                              variant="h5" 
-                              fontWeight="bold" 
-                              sx={{ 
-                                color: parseInt(calculatePassRate(selectedSoldier.id)) >= 80 ? 'success.main' : 
-                                      parseInt(calculatePassRate(selectedSoldier.id)) >= 50 ? 'warning.main' : 'error.main' 
-                              }}
-                            >
-                              {calculatePassRate(selectedSoldier.id)}%
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      </Grid>
-                      <Divider sx={{ my: 2 }} />
-                      <Box>
-                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                          סטטוס חודשי
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                          {isTrainedThisMonth(selectedSoldier.id) ? (
+                          >
+                            {selectedSoldier.name.charAt(0)}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="h6" fontWeight="bold">{selectedSoldier.name}</Typography>
                             <Chip 
-                              icon={<CheckIcon />} 
-                              label="בוצע תרגול החודש" 
-                              color="success" 
-                              variant="filled" 
-                              sx={{ fontWeight: 'medium' }} 
+                              label={selectedSoldier.team} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
+                                        selectedSoldier.team === 'רתק' ? '#c8e6c9' :
+                                        selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
+                                color: 'rgba(0, 0, 0, 0.7)',
+                                fontWeight: 'bold',
+                                '& .MuiChip-label': { px: 1 }
+                              }} 
                             />
-                          ) : (
-                            <Chip 
-                              icon={<WarningIcon />} 
-                              label="לא בוצע תרגול החודש" 
-                              color="warning" 
-                              variant="filled" 
-                              sx={{ fontWeight: 'medium' }} 
-                            />
-                          )}
+                          </Box>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" color="text.secondary">מספר אישי:</Typography>
+                          <Typography variant="body2" fontWeight="medium">{selectedSoldier.personal_id}</Typography>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" color="text.secondary">זמן CAT ממוצע:</Typography>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight="medium"
+                            color={
+                              selectedSoldier.stats?.average_cat_time > 35 ? 'error.main' :
+                              selectedSoldier.stats?.average_cat_time > 25 ? 'warning.main' : 'success.main'
+                            }
+                          >
+                            {selectedSoldier.stats?.average_cat_time || calculateAverageCatTime(selectedSoldier.id)} שניות
+                          </Typography>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" color="text.secondary">אחוז הצלחה:</Typography>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight="medium"
+                            color={
+                              (selectedSoldier.stats?.pass_rate || calculatePassRate(selectedSoldier.id)) >= 90 ? 'success.main' :
+                              (selectedSoldier.stats?.pass_rate || calculatePassRate(selectedSoldier.id)) >= 70 ? 'warning.main' : 'error.main'
+                            }
+                          >
+                            {selectedSoldier.stats?.pass_rate || calculatePassRate(selectedSoldier.id)}%
+                          </Typography>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" color="text.secondary">תרגולים סך הכל:</Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {selectedSoldier.stats?.total_trainings || getSoldierTrainings(selectedSoldier.id).length} תרגולים
+                          </Typography>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="body2" color="text.secondary">סטטוס חודשי:</Typography>
+                          <Chip
+                            size="small"
+                            label={isTrainedThisMonth(selectedSoldier.id) ? 'בוצע החודש' : 'לא בוצע החודש'}
+                            color={isTrainedThisMonth(selectedSoldier.id) ? 'success' : 'error'}
+                            variant={isTrainedThisMonth(selectedSoldier.id) ? 'filled' : 'outlined'}
+                          />
                         </Box>
                       </Box>
+                      
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        fullWidth
+                        startIcon={<AddIcon />}
+                        onClick={() => {
+                          setOpenSoldierDetails(false);
+                          handleAddTraining(selectedSoldier);
+                        }}
+                        sx={{ mt: 3, borderRadius: 2 }}
+                      >
+                        תרגול חדש
+                      </Button>
                     </CardContent>
                   </Card>
                 </Grid>
                 
                 <Grid item xs={12} md={8}>
-                  <Card variant="outlined" sx={{ borderRadius: 2, height: '100%' }}>
-                    <CardHeader
-                      title="היסטוריית תרגולים"
-                      titleTypographyProps={{ fontWeight: 'bold' }}
-                      sx={{ borderBottom: '1px solid #e0e0e0', bgcolor: '#f5f5f5' }}
-                      action={
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          size="small"
-                          startIcon={<AddIcon />}
-                          onClick={() => {
-                            setOpenSoldierDetails(false);
-                            handleAddTraining(selectedSoldier);
-                          }}
-                          sx={{ borderRadius: 2 }}
-                        >
-                          תרגול חדש
-                        </Button>
-                      }
-                    />
-                    <CardContent sx={{ p: 0 }}>
-                      {getSoldierTrainings(selectedSoldier.id).length === 0 ? (
-                        <Box sx={{ p: 4, textAlign: 'center' }}>
-                          <Typography color="text.secondary" sx={{ mb: 2 }}>
-                            לא נמצאו תרגולים קודמים
-                          </Typography>
-                          <Button
-                            variant="outlined"
-                            startIcon={<AddIcon />}
-                            onClick={() => {
-                              setOpenSoldierDetails(false);
-                              handleAddTraining(selectedSoldier);
-                            }}
-                          >
-                            הוסף תרגול ראשון
-                          </Button>
-                        </Box>
-                      ) : (
-                        <TableContainer sx={{ maxHeight: 400 }}>
-                          <Table stickyHeader size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold' }}>זמן CAT</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold' }}>תוצאה</TableCell>
-                                <TableCell sx={{ fontWeight: 'bold' }}>הערות</TableCell>
+                  <Paper sx={{ borderRadius: 2, overflow: 'hidden', mb: 2 }}>
+                    <Box p={0.5} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
+                      <Typography variant="subtitle1" sx={{ p: 1.5, fontWeight: 'bold' }}>
+                        היסטוריית תרגולים
+                      </Typography>
+                    </Box>
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: '#f9f9f9' }}>
+                            <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>זמן CAT</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>תוצאה</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold' }}>הערות</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {selectedSoldier.stats?.trainings || getSoldierTrainings(selectedSoldier.id)
+                            .sort((a, b) => new Date(b.training_date) - new Date(a.training_date))
+                            .map((training) => (
+                              <TableRow
+                                key={training.id}
+                                hover
+                                sx={{ 
+                                  transition: 'all 0.2s',
+                                  '&:hover': {
+                                    bgcolor: 'rgba(25, 118, 210, 0.04)',
+                                  } 
+                                }}
+                              >
+                                <TableCell>{formatDate(training.training_date)}</TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
+                                    <Typography 
+                                      sx={{ 
+                                        fontWeight: 'medium',
+                                        color: parseInt(training.cat_time) > 35 ? 'error.main' : 
+                                               parseInt(training.cat_time) > 25 ? 'warning.main' : 'success.main'
+                                      }}
+                                    >
+                                      {training.cat_time} שניות
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={training.passed ? "עבר" : "נכשל"}
+                                    color={training.passed ? "success" : "error"}
+                                    variant="filled"
+                                    size="small"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  {training.notes || <Typography variant="body2" color="text.secondary">אין הערות</Typography>}
+                                </TableCell>
                               </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {getSoldierTrainings(selectedSoldier.id)
-                                .sort((a, b) => new Date(b.training_date) - new Date(a.training_date))
-                                .map((training) => (
-                                  <TableRow key={training.id}>
-                                    <TableCell>{formatDate(training.training_date)}</TableCell>
-                                    <TableCell>
-                                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                        <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                                        <Typography 
-                                          sx={{ 
-                                            fontWeight: 'medium',
-                                            color: parseInt(training.cat_time) > 35 ? 'error.main' : 
-                                                  parseInt(training.cat_time) > 25 ? 'warning.main' : 'success.main'
-                                          }}
-                                        >
-                                          {training.cat_time} שניות
-                                        </Typography>
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Chip
-                                        label={training.passed ? "עבר" : "נכשל"}
-                                        color={training.passed ? "success" : "error"}
-                                        size="small"
-                                        variant={training.passed ? "filled" : "outlined"}
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      {training.notes || '-'}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      )}
-                    </CardContent>
-                  </Card>
+                            ))}
+                          {(!selectedSoldier.stats?.trainings || selectedSoldier.stats?.trainings.length === 0) && 
+                           getSoldierTrainings(selectedSoldier.id).length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={4} align="center">
+                                <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                                  <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
+                                  <Typography sx={{ color: 'text.secondary' }}>אין היסטוריית תרגולים</Typography>
+                                  <Button 
+                                    variant="contained" 
+                                    color="primary" 
+                                    size="small"
+                                    startIcon={<AddIcon />}
+                                    onClick={() => {
+                                      setOpenSoldierDetails(false);
+                                      handleAddTraining(selectedSoldier);
+                                    }}
+                                    sx={{ mt: 1 }}
+                                  >
+                                    הוסף תרגול חדש
+                                  </Button>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Paper>
+                  
+                  {/* גרף התקדמות - כאשר יש נתוני התקדמות */}
+                  {selectedSoldier.stats?.improvement_trend && selectedSoldier.stats.improvement_trend.is_improving && (
+                    <Paper sx={{ borderRadius: 2, p: 2 }}>
+                      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                        מגמת שיפור
+                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                        <Chip 
+                          icon={<TrendingUpIcon />} 
+                          label={`מגמת שיפור: ${selectedSoldier.stats.improvement_trend.improvement_percent.toFixed(1)}%`} 
+                          color="success" 
+                          variant="outlined"
+                        />
+                      </Box>
+                    </Paper>
+                  )}
                 </Grid>
               </Grid>
             </DialogContent>
             <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-              <Button
-                variant="outlined"
+              <Button 
                 onClick={() => setOpenSoldierDetails(false)}
+                variant="outlined"
                 startIcon={<CloseIcon />}
               >
                 סגור
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => {
-                  setOpenSoldierDetails(false);
-                  handleAddTraining(selectedSoldier);
-                }}
-                startIcon={<AddIcon />}
-              >
-                תרגול חדש
               </Button>
             </DialogActions>
           </>
         )}
       </Dialog>
-
-      <Backdrop
-        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
-        open={loading && soldiers.length > 0}
-      >
-        <CircularProgress color="inherit" />
-      </Backdrop>
     </Box>
   );
 };
