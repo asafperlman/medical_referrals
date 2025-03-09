@@ -87,17 +87,8 @@ const TeamTraining = ({ showNotification }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // קבלת נתוני צוותים - אם אין API ספציפי, ניתן להשתמש בערכים קבועים
-      let teamsData;
-      try {
-        teamsData = await apiService.fetchTeams();
-      } catch (error) {
-        // אם אין נקודת קצה לצוותים, השתמש בערכים קבועים
-        teamsData = ['חוד', 'אתק', 'רתק', 'מפלג'];
-        console.log('Using hardcoded teams data');
-      }
-
-      // קבלת נתוני אימונים
+      // שימוש בשירות API אמיתי במקום נתונים מדומים
+      const teamsData = await apiService.fetchTeams();
       const trainingsData = await apiService.fetchTeamTrainings();
       
       setTeams(teamsData);
@@ -109,7 +100,7 @@ const TeamTraining = ({ showNotification }) => {
       setLoading(false);
     }
   };
-
+  
   const handleAddTraining = () => {
     setSelectedTraining(null);
     setFormData({
@@ -145,7 +136,7 @@ const TeamTraining = ({ showNotification }) => {
     setLoading(true);
     try {
       if (selectedTraining) {
-        // עדכון אימון קיים
+        // עדכון תרגול קיים
         const updatedTraining = await apiService.updateTeamTraining(selectedTraining.id, formData);
         
         // עדכון ה-state המקומי לאחר קבלת אישור מהשרת
@@ -155,7 +146,7 @@ const TeamTraining = ({ showNotification }) => {
         setTrainings(updatedTrainings);
         showNotification('התרגיל עודכן בהצלחה');
       } else {
-        // יצירת אימון חדש
+        // יצירת תרגול חדש
         const newTraining = await apiService.createTeamTraining(formData);
         
         // הוספה ל-state המקומי לאחר קבלת אישור מהשרת
@@ -188,6 +179,7 @@ const TeamTraining = ({ showNotification }) => {
       setLoading(false);
     }
   };
+  
 
   const handleRefresh = async () => {
     await fetchData();
