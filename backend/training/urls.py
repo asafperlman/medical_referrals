@@ -15,11 +15,12 @@ from .views import (
 # Define the router
 router = DefaultRouter()
 
+# הנתיבים צריכים להיות מותאמים למה שמצופה ב-Frontend
 router.register(r'team', TeamTrainingViewSet)
 router.register(r'soldiers', SoldierViewSet)
 router.register(r'tourniquet', TourniquetTrainingViewSet)
 router.register(r'medics', MedicViewSet)
-router.register(r'medic-training', MedicTrainingViewSet)
+router.register(r'medic', MedicTrainingViewSet)  # שינוי: medic במקום medic-training
 
 # Define the URL patterns
 urlpatterns = [

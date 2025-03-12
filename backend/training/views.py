@@ -1,3 +1,5 @@
+# medical-referrals/backend/training/views.py
+
 from rest_framework import viewsets, filters, status, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -16,8 +18,396 @@ from .serializers import (
     MedicTrainingSerializer,
     TrainingStatsSerializer,
     SoldierStatsSerializer,
-    MedicStatsSerializer
+    MedicStatsSerializer,
+    TeamStatsSerializer
 )
+
+
+class TeamTrainingViewSet(viewsets.ModelViewSet):
+    """
+    API לניהול תרגולי צוות
+    """
+    queryset = TeamTraining.objects.all().order_by('-date')
+    serializer_class = TeamTrainingSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ['team', 'scenario', 'location', 'notes']
+    filterset_fields = {
+        'team': ['exact', 'in'],
+        'date': ['gte', 'lte'],
+        'performance_rating': ['exact', 'gte', 'lte'],
+    }
+    ordering_fields = ['date', 'team', 'performance_rating']
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user, last_updated_by=self.request.user)
+    
+    def perform_update(self, serializer):
+        serializer.save(last_updated_by=self.request.user)
+        
+    @action(detail=False, methods=['get'])
+    def stats_by_team(self, request):
+        """
+        קבלת נתונים סטטיסטיים לפי צוות
+        """
+        team = request.query_params.get('team')
+        if not team:
+            return Response({"error": "נדרש פרמטר 'team'"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        team_trainings = self.get_queryset().filter(team=team)
+        
+        if not team_trainings.exists():
+            return Response({"error": f"לא נמצאו תרגולים לצוות {team}"}, status=status.HTTP_404_NOT_FOUND)
+            
+        # חישוב סטטיסטיקות
+        total_trainings = team_trainings.count()
+        avg_rating = team_trainings.aggregate(avg=Avg('performance_rating'))['avg'] or 0
+        
+        # מספר חיילים בצוות
+        soldiers_count = Soldier.objects.filter(team=team).count()
+        
+        # התפלגות לפי חודשים
+        now = timezone.now().date()
+        months_data = []
+        
+        for i in range(6):  # 6 חודשים אחרונים
+            month_date = now.replace(day=1) - datetime.timedelta(days=30 * i)
+            month_start = month_date.replace(day=1)
+            
+            if month_date.month == 12:
+                next_month = month_date.replace(year=month_date.year+1, month=1, day=1)
+            else:
+                next_month = month_date.replace(month=month_date.month+1, day=1)
+                
+            month_end = next_month - datetime.timedelta(days=1)
+            
+            month_trainings = team_trainings.filter(date__gte=month_start, date__lte=month_end)
+            month_count = month_trainings.count()
+            
+            if month_count > 0:
+                avg = month_trainings.aggregate(avg=Avg('performance_rating'))['avg'] or 0
+                months_data.append({
+                    'month': month_start.strftime('%m/%Y'),
+                    'count': month_count,
+                    'avg_rating': round(avg, 1)
+                })
+        
+        # תרגולים אחרונים
+        recent_trainings = TeamTrainingSerializer(
+            team_trainings.order_by('-date')[:5], 
+            many=True
+        ).data
+        
+        data = {
+            'team': team,
+            'total_trainings': total_trainings,
+            'average_rating': round(avg_rating, 1),
+            'members_count': soldiers_count,
+            'trainings_by_month': months_data,
+            'recent_trainings': recent_trainings
+        }
+        
+        serializer = TeamStatsSerializer(data)
+        return Response(serializer.data)
+
+
+class SoldierViewSet(viewsets.ModelViewSet):
+    """
+    API לניהול חיילים
+    """
+    queryset = Soldier.objects.all().order_by('team', 'name')
+    serializer_class = SoldierSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ['name', 'personal_id']
+    filterset_fields = {
+        'team': ['exact', 'in'],
+    }
+    ordering_fields = ['name', 'team']
+    
+    @action(detail=False, methods=['get'])
+    def untrained_this_month(self, request):
+        """
+        קבלת רשימת חיילים שלא תורגלו החודש
+        """
+        now = timezone.now().date()
+        first_day_of_month = now.replace(day=1)
+        
+        # Get current month trainings
+        current_month_trainings = TourniquetTraining.objects.filter(
+            training_date__gte=first_day_of_month
+        )
+        
+        # Get soldier IDs that have trainings this month
+        trained_soldier_ids = current_month_trainings.values_list('soldier_id', flat=True).distinct()
+        
+        # Filter soldiers that don't have trainings this month
+        untrained_soldiers = self.get_queryset().exclude(id__in=trained_soldier_ids)
+        
+        # אופציונלי: סינון לפי צוות
+        team = request.query_params.get('team')
+        if team:
+            untrained_soldiers = untrained_soldiers.filter(team=team)
+        
+        page = self.paginate_queryset(untrained_soldiers)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(untrained_soldiers, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def stats(self, request, pk=None):
+        """
+        קבלת סטטיסטיקות עבור חייל ספציפי
+        """
+        soldier = self.get_object()
+        
+        # Get all trainings for this soldier
+        trainings = TourniquetTraining.objects.filter(soldier=soldier).order_by('-training_date')
+        
+        # Calculate stats
+        stats = {}
+        improvement_trend = {}
+        
+        if trainings.exists():
+            # CAT time stats
+            cat_times = [int(t.cat_time) for t in trainings if t.cat_time.isdigit()]
+            
+            if cat_times:
+                stats['average_cat_time'] = sum(cat_times) / len(cat_times)
+                stats['best_cat_time'] = min(cat_times)
+                stats['worst_cat_time'] = max(cat_times)
+                
+                # Pass rate
+                total_trainings = trainings.count()
+                passed_trainings = trainings.filter(passed=True).count()
+                stats['pass_rate'] = (passed_trainings / total_trainings) * 100
+                stats['total_trainings'] = total_trainings
+                
+                # Training recency
+                last_training = trainings.first()
+                stats['last_training'] = {
+                    'date': last_training.training_date,
+                    'cat_time': last_training.cat_time,
+                    'passed': last_training.passed
+                }
+                
+                # This month training
+                now = timezone.now().date()
+                first_day_of_month = now.replace(day=1)
+                stats['trained_this_month'] = trainings.filter(training_date__gte=first_day_of_month).exists()
+                
+                # Improvement trend
+                if trainings.count() >= 2:
+                    # Get chronological order of trainings for trend analysis
+                    ordered_trainings = list(trainings.order_by('training_date'))
+                    cat_times_ordered = [int(t.cat_time) for t in ordered_trainings if t.cat_time.isdigit()]
+                    
+                    if len(cat_times_ordered) >= 2:
+                        first_time = cat_times_ordered[0]
+                        last_time = cat_times_ordered[-1]
+                        improvement = first_time - last_time
+                        
+                        improvement_trend['first_time'] = first_time
+                        improvement_trend['last_time'] = last_time
+                        improvement_trend['improvement'] = improvement
+                        improvement_trend['improvement_percent'] = (improvement / first_time) * 100 if first_time > 0 else 0
+                        improvement_trend['is_improving'] = improvement > 0
+                    else:
+                        improvement_trend['is_improving'] = False
+                else:
+                    improvement_trend['is_improving'] = False
+            else:
+                # Default values if no valid CAT times
+                stats['average_cat_time'] = 0
+                stats['best_cat_time'] = 0
+                stats['worst_cat_time'] = 0
+                stats['pass_rate'] = 0
+                stats['total_trainings'] = trainings.count()
+                stats['last_training'] = None
+                stats['trained_this_month'] = False
+                improvement_trend['is_improving'] = False
+        else:
+            # Default values if no trainings
+            stats['average_cat_time'] = 0
+            stats['best_cat_time'] = 0
+            stats['worst_cat_time'] = 0
+            stats['pass_rate'] = 0
+            stats['total_trainings'] = 0
+            stats['last_training'] = None
+            stats['trained_this_month'] = False
+            improvement_trend['is_improving'] = False
+            
+        # Format trainings for response
+        trainings_data = []
+        for training in trainings:
+            trainings_data.append({
+                'id': training.id,
+                'date': training.training_date,
+                'cat_time': training.cat_time,
+                'passed': training.passed,
+                'notes': training.notes
+            })
+        
+        data = {
+            'soldier_data': SoldierSerializer(soldier).data,
+            'trainings': trainings_data,
+            'stats': stats,
+            'improvement_trend': improvement_trend
+        }
+        
+        serializer = SoldierStatsSerializer(data)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_team(self, request):
+        """
+        קבלת רשימת חיילים מסודרת לפי צוות
+        """
+        team = request.query_params.get('team')
+        if not team:
+            # אם לא צוין צוות, החזר את כל הצוותים עם כמות חיילים
+            teams = dict(Soldier.TEAM_CHOICES)
+            result = {}
+            
+            for team_code in teams.keys():
+                team_soldiers = self.get_queryset().filter(team=team_code)
+                result[team_code] = {
+                    'name': teams[team_code],
+                    'count': team_soldiers.count(),
+                    'soldiers': SoldierSerializer(team_soldiers, many=True).data
+                }
+                
+            return Response(result)
+            
+        # אם צוין צוות ספציפי, החזר את החיילים של אותו צוות
+        soldiers = self.get_queryset().filter(team=team)
+        
+        serializer = self.get_serializer(soldiers, many=True)
+        return Response(serializer.data)
+
+
+class TourniquetTrainingViewSet(viewsets.ModelViewSet):
+    """
+    API לניהול תרגולי חסמי עורקים
+    """
+    queryset = TourniquetTraining.objects.all().order_by('-training_date')
+    serializer_class = TourniquetTrainingSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ['soldier__name', 'soldier__personal_id', 'notes']
+    filterset_fields = {
+        'soldier': ['exact'],
+        'soldier__team': ['exact', 'in'],
+        'training_date': ['gte', 'lte'],
+        'passed': ['exact'],
+    }
+    ordering_fields = ['training_date', 'cat_time', 'soldier__name']
+    
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user, last_updated_by=self.request.user)
+    
+    def perform_update(self, serializer):
+        serializer.save(last_updated_by=self.request.user)
+    
+    @action(detail=False, methods=['post'])
+    def bulk_create(self, request):
+        """
+        יצירת מספר רשומות תרגול בבת אחת
+        """
+        serializer = self.get_serializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        
+        # Add user to each record
+        trainings = []
+        for item in serializer.validated_data:
+            trainings.append(TourniquetTraining(
+                **item,
+                created_by=request.user,
+                last_updated_by=request.user
+            ))
+        
+        # Bulk create the records
+        TourniquetTraining.objects.bulk_create(trainings)
+        
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=False, methods=['get'])
+    def current_month(self, request):
+        """
+        קבלת תרגולי החודש הנוכחי
+        """
+        now = timezone.now().date()
+        first_day_of_month = now.replace(day=1)
+        
+        trainings = TourniquetTraining.objects.filter(
+            training_date__gte=first_day_of_month
+        ).order_by('-training_date')
+        
+        # אופציונלי: סינון לפי צוות
+        team = request.query_params.get('team')
+        if team:
+            trainings = trainings.filter(soldier__team=team)
+        
+        page = self.paginate_queryset(trainings)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+            
+        serializer = self.get_serializer(trainings, many=True)
+        return Response(serializer.data)
+        
+    @action(detail=False, methods=['get'])
+    def best_times(self, request):
+        """
+        קבלת זמני ה-CAT הטובים ביותר
+        """
+        # Create a subquery to get the best time for each soldier
+        soldier_best_times = {}
+        
+        for training in TourniquetTraining.objects.all():
+            if not training.cat_time.isdigit():
+                continue
+                
+            soldier_id = training.soldier_id
+            cat_time = int(training.cat_time)
+            
+            if soldier_id not in soldier_best_times or cat_time < soldier_best_times[soldier_id]['time']:
+                soldier_best_times[soldier_id] = {
+                    'training': training,
+                    'time': cat_time
+                }
+        
+        # Sort by time and get the top 10
+        sorted_trainings = sorted([item['training'] for item in soldier_best_times.values()], 
+                                key=lambda t: int(t.cat_time) if t.cat_time.isdigit() else 999)[:10]
+        
+        serializer = self.get_serializer(sorted_trainings, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_team(self, request):
+        """
+        קבלת תרגולים מקובצים לפי צוות
+        """
+        result = {}
+        teams = dict(Soldier.TEAM_CHOICES)
+        
+        for team_code in teams.keys():
+            team_trainings = self.get_queryset().filter(soldier__team=team_code)
+            
+            result[team_code] = {
+                'name': teams[team_code],
+                'total': team_trainings.count(),
+                'passed': team_trainings.filter(passed=True).count(),
+                'trainings': self.get_serializer(team_trainings, many=True).data
+            }
+            
+        return Response(result)
+
+
 class MedicViewSet(viewsets.ModelViewSet):
     """
     API לניהול חובשים
@@ -144,12 +534,44 @@ class MedicViewSet(viewsets.ModelViewSet):
         # Filter medics that don't have trainings this month
         untrained_medics = self.get_queryset().exclude(id__in=trained_medic_ids)
         
+        # אופציונלי: סינון לפי צוות
+        team = request.query_params.get('team')
+        if team:
+            untrained_medics = untrained_medics.filter(team=team)
+            
         page = self.paginate_queryset(untrained_medics)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
             
         serializer = self.get_serializer(untrained_medics, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def by_team(self, request):
+        """
+        קבלת רשימת חובשים מסודרת לפי צוות
+        """
+        team = request.query_params.get('team')
+        if not team:
+            # אם לא צוין צוות, החזר את כל הצוותים עם כמות חובשים
+            teams = dict(Medic.TEAM_CHOICES)
+            result = {}
+            
+            for team_code in teams.keys():
+                team_medics = self.get_queryset().filter(team=team_code)
+                result[team_code] = {
+                    'name': teams[team_code],
+                    'count': team_medics.count(),
+                    'medics': MedicSerializer(team_medics, many=True).data
+                }
+                
+            return Response(result)
+            
+        # אם צוין צוות ספציפי, החזר את החובשים של אותו צוות
+        medics = self.get_queryset().filter(team=team)
+        
+        serializer = self.get_serializer(medics, many=True)
         return Response(serializer.data)
 
 
@@ -211,6 +633,11 @@ class MedicTrainingViewSet(viewsets.ModelViewSet):
         trainings = MedicTraining.objects.filter(
             training_date__gte=first_day_of_month
         ).order_by('-training_date')
+        
+        # אופציונלי: סינון לפי צוות
+        team = request.query_params.get('team')
+        if team:
+            trainings = trainings.filter(medic__team=team)
         
         page = self.paginate_queryset(trainings)
         if page is not None:
@@ -491,337 +918,4 @@ class TrainingStatsView(generics.GenericAPIView):
         }
         
         serializer = self.get_serializer(data)
-        return Response(serializer.data)# medical-referrals/backend/training/views.py
-
-from rest_framework import viewsets, filters, status, generics
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Count, Avg, Q
-from django.utils import timezone
-import datetime
-
-from .models import TeamTraining, Soldier, TourniquetTraining, Medic, MedicTraining
-from .serializers import (
-    TeamTrainingSerializer,
-    SoldierSerializer,
-    TourniquetTrainingSerializer,
-    MedicSerializer,
-    MedicTrainingSerializer,
-    TrainingStatsSerializer,
-    SoldierStatsSerializer,
-    MedicStatsSerializer
-)
-
-
-class TeamTrainingViewSet(viewsets.ModelViewSet):
-    """
-    API לניהול תרגולי צוות
-    """
-    queryset = TeamTraining.objects.all().order_by('-date')
-    serializer_class = TeamTrainingSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
-    search_fields = ['team', 'scenario', 'location', 'notes']
-    filterset_fields = {
-        'team': ['exact', 'in'],
-        'date': ['gte', 'lte'],
-        'performance_rating': ['exact', 'gte', 'lte'],
-    }
-    ordering_fields = ['date', 'team', 'performance_rating']
-    
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user, last_updated_by=self.request.user)
-    
-    def perform_update(self, serializer):
-        serializer.save(last_updated_by=self.request.user)
-
-
-class SoldierViewSet(viewsets.ModelViewSet):
-    """
-    API לניהול חיילים
-    """
-    queryset = Soldier.objects.all().order_by('team', 'name')
-    serializer_class = SoldierSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
-    search_fields = ['name', 'personal_id']
-    filterset_fields = {
-        'team': ['exact', 'in'],
-    }
-    ordering_fields = ['name', 'team']
-    
-    @action(detail=False, methods=['get'])
-    def untrained_this_month(self, request):
-        """
-        קבלת רשימת חיילים שלא תורגלו החודש
-        """
-        now = timezone.now().date()
-        first_day_of_month = now.replace(day=1)
-        
-        # Get current month trainings
-        current_month_trainings = TourniquetTraining.objects.filter(
-            training_date__gte=first_day_of_month
-        )
-        
-        # Get soldier IDs that have trainings this month
-        trained_soldier_ids = current_month_trainings.values_list('soldier_id', flat=True).distinct()
-        
-        # Filter soldiers that don't have trainings this month
-        untrained_soldiers = self.get_queryset().exclude(id__in=trained_soldier_ids)
-        
-        page = self.paginate_queryset(untrained_soldiers)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = self.get_serializer(untrained_soldiers, many=True)
         return Response(serializer.data)
-    
-    @action(detail=True, methods=['get'])
-    def stats(self, request, pk=None):
-        """
-        קבלת סטטיסטיקות עבור חייל ספציפי
-        """
-        soldier = self.get_object()
-        
-        # Get all trainings for this soldier
-        trainings = TourniquetTraining.objects.filter(soldier=soldier).order_by('-training_date')
-        
-        # Calculate stats
-        stats = {}
-        improvement_trend = {}
-        
-        if trainings.exists():
-            # CAT time stats
-            cat_times = [int(t.cat_time) for t in trainings if t.cat_time.isdigit()]
-            
-            if cat_times:
-                stats['average_cat_time'] = sum(cat_times) / len(cat_times)
-                stats['best_cat_time'] = min(cat_times)
-                stats['worst_cat_time'] = max(cat_times)
-                
-                # Pass rate
-                total_trainings = trainings.count()
-                passed_trainings = trainings.filter(passed=True).count()
-                stats['pass_rate'] = (passed_trainings / total_trainings) * 100
-                stats['total_trainings'] = total_trainings
-                
-                # Training recency
-                last_training = trainings.first()
-                stats['last_training'] = {
-                    'date': last_training.training_date,
-                    'cat_time': last_training.cat_time,
-                    'passed': last_training.passed
-                }
-                
-                # This month training
-                now = timezone.now().date()
-                first_day_of_month = now.replace(day=1)
-                stats['trained_this_month'] = trainings.filter(training_date__gte=first_day_of_month).exists()
-                
-                # Improvement trend
-                if trainings.count() >= 2:
-                    # Get chronological order of trainings for trend analysis
-                    ordered_trainings = list(trainings.order_by('training_date'))
-                    cat_times_ordered = [int(t.cat_time) for t in ordered_trainings if t.cat_time.isdigit()]
-                    
-                    if len(cat_times_ordered) >= 2:
-                        first_time = cat_times_ordered[0]
-                        last_time = cat_times_ordered[-1]
-                        improvement = first_time - last_time
-                        
-                        improvement_trend['first_time'] = first_time
-                        improvement_trend['last_time'] = last_time
-                        improvement_trend['improvement'] = improvement
-                        improvement_trend['improvement_percent'] = (improvement / first_time) * 100 if first_time > 0 else 0
-                        improvement_trend['is_improving'] = improvement > 0
-                    else:
-                        improvement_trend['is_improving'] = False
-                else:
-                    improvement_trend['is_improving'] = False
-            else:
-                # Default values if no valid CAT times
-                stats['average_cat_time'] = 0
-                stats['best_cat_time'] = 0
-                stats['worst_cat_time'] = 0
-                stats['pass_rate'] = 0
-                stats['total_trainings'] = trainings.count()
-                stats['last_training'] = None
-                stats['trained_this_month'] = False
-                improvement_trend['is_improving'] = False
-        else:
-            # Default values if no trainings
-            stats['average_cat_time'] = 0
-            stats['best_cat_time'] = 0
-            stats['worst_cat_time'] = 0
-            stats['pass_rate'] = 0
-            stats['total_trainings'] = 0
-            stats['last_training'] = None
-            stats['trained_this_month'] = False
-            improvement_trend['is_improving'] = False
-            
-        # Format trainings for response
-        trainings_data = []
-        for training in trainings:
-            trainings_data.append({
-                'id': training.id,
-                'date': training.training_date,
-                'cat_time': training.cat_time,
-                'passed': training.passed,
-                'notes': training.notes
-            })
-        
-        data = {
-            'soldier_data': SoldierSerializer(soldier).data,
-            'trainings': trainings_data,
-            'stats': stats,
-            'improvement_trend': improvement_trend
-        }
-        
-        serializer = SoldierStatsSerializer(data)
-        return Response(serializer.data)
-
-
-class TourniquetTrainingViewSet(viewsets.ModelViewSet):
-    """
-    API לניהול תרגולי חסמי עורקים
-    """
-    queryset = TourniquetTraining.objects.all().order_by('-training_date')
-    serializer_class = TourniquetTrainingSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
-    search_fields = ['soldier__name', 'soldier__personal_id', 'notes']
-    filterset_fields = {
-        'soldier': ['exact'],
-        'soldier__team': ['exact', 'in'],
-        'training_date': ['gte', 'lte'],
-        'passed': ['exact'],
-    }
-    ordering_fields = ['training_date', 'cat_time', 'soldier__name']
-    
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user, last_updated_by=self.request.user)
-    
-    def perform_update(self, serializer):
-        serializer.save(last_updated_by=self.request.user)
-    
-    @action(detail=False, methods=['post'])
-    def bulk_create(self, request):
-        """
-        יצירת מספר רשומות תרגול בבת אחת
-        """
-        serializer = self.get_serializer(data=request.data, many=True)
-        serializer.is_valid(raise_exception=True)
-        
-        # Add user to each record
-        trainings = []
-        for item in serializer.validated_data:
-            trainings.append(TourniquetTraining(
-                **item,
-                created_by=request.user,
-                last_updated_by=request.user
-            ))
-        
-        # Bulk create the records
-        TourniquetTraining.objects.bulk_create(trainings)
-        
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    @action(detail=False, methods=['get'])
-    def current_month(self, request):
-        """
-        קבלת תרגולי החודש הנוכחי
-        """
-        now = timezone.now().date()
-        first_day_of_month = now.replace(day=1)
-        
-        trainings = TourniquetTraining.objects.filter(
-            training_date__gte=first_day_of_month
-        ).order_by('-training_date')
-        
-        page = self.paginate_queryset(trainings)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = self.get_serializer(trainings, many=True)
-        return Response(serializer.data)
-        
-    @action(detail=False, methods=['get'])
-    def best_times(self, request):
-        """
-        קבלת זמני ה-CAT הטובים ביותר
-        """
-        # Create a subquery to get the best time for each soldier
-        soldier_best_times = {}
-        
-        for training in TourniquetTraining.objects.all():
-            if not training.cat_time.isdigit():
-                continue
-                
-            soldier_id = training.soldier_id
-            cat_time = int(training.cat_time)
-            
-            if soldier_id not in soldier_best_times or cat_time < soldier_best_times[soldier_id]['time']:
-                soldier_best_times[soldier_id] = {
-                    'training': training,
-                    'time': cat_time
-                }
-        
-        # Sort by time and get the top 10
-        sorted_trainings = sorted([item['training'] for item in soldier_best_times.values()], 
-                                key=lambda t: int(t.cat_time) if t.cat_time.isdigit() else 999)[:10]
-        
-        serializer = self.get_serializer(sorted_trainings, many=True)
-        return Response(serializer.data)
-    
-@action(detail=False, methods=['post'])
-def bulk_create(self, request):
-    """
-    יצירת מספר רשומות תרגול בבת אחת
-    """
-    serializer = self.get_serializer(data=request.data, many=True)
-    serializer.is_valid(raise_exception=True)
-    
-    # Add user to each record
-    instances = []
-    for item in serializer.validated_data:
-        instances.append(TourniquetTraining(
-            **item,
-            created_by=request.user,
-            last_updated_by=request.user
-        ))
-    
-    # Bulk create the records
-    TourniquetTraining.objects.bulk_create(instances)
-    
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-@action(detail=False, methods=['get'])
-def untrained_this_month(self, request):
-    """
-    קבלת רשימת חיילים שלא תורגלו החודש
-    """
-    now = timezone.now().date()
-    first_day_of_month = now.replace(day=1)
-    
-    # Get current month trainings
-    current_month_trainings = TourniquetTraining.objects.filter(
-        training_date__gte=first_day_of_month
-    )
-    
-    # Get soldier IDs that have trainings this month
-    trained_soldier_ids = current_month_trainings.values_list('soldier_id', flat=True).distinct()
-    
-    # Filter soldiers that don't have trainings this month
-    untrained_soldiers = Soldier.objects.exclude(id__in=trained_soldier_ids)
-    
-    page = self.paginate_queryset(untrained_soldiers)
-    if page is not None:
-        serializer = SoldierSerializer(page, many=True)
-        return self.get_paginated_response(serializer.data)
-        
-    serializer = SoldierSerializer(untrained_soldiers, many=True)
-    return Response(serializer.data)

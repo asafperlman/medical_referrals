@@ -292,6 +292,16 @@ class TeamTrainingDetailSerializer(serializers.ModelSerializer):
         # לוגיקה להבאת משתתפים בתרגול - תלוי בהגדרת המודל שלך
         return []
 
+class TeamStatsSerializer(serializers.Serializer):
+    """
+    סריאלייזר לסטטיסטיקות צוות
+    """
+    team = serializers.CharField()
+    total_trainings = serializers.IntegerField()
+    average_rating = serializers.FloatField()
+    members_count = serializers.IntegerField()
+    trainings_by_month = serializers.ListField()
+    recent_trainings = serializers.ListField()
 
 class SoldierDetailSerializer(serializers.ModelSerializer):
     """
