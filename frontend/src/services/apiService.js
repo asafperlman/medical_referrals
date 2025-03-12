@@ -1,89 +1,82 @@
-// frontend/src/services/apiService.js
-
+// API Configuration
 import axios from 'axios';
 
-// הגדרת כתובת בסיס ל-API
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+const TRAININGS_BASE_URL = `${API_BASE_URL}/trainings`;
 
-// הוספת האינטרספטור להוספת טוקן אוטומטית
-axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// שירות API עבור הפעולות השונות במערכת
+// API service functions
 const apiService = {
-  // === טיפול בשגיאות ===
+  // Utility function for API error handling
   handleApiError: (error, showNotification) => {
-    console.error('API Error:', error);
-    
     if (error.response) {
-      // שגיאת תשובה מהשרת
+      // Server responded with an error
       const status = error.response.status;
+      const data = error.response.data;
       
-      if (status === 401) {
-        // שגיאת אימות - המשתמש לא מחובר או שפג תוקף הטוקן
-        localStorage.removeItem('token');
-        showNotification('פג תוקף החיבור, יש להתחבר מחדש', 'error');
-        // הפניה לדף התחברות במידת הצורך
-        // window.location.href = '/login';
-      } else if (status === 403) {
-        // אין הרשאות מתאימות
-        showNotification('אין לך הרשאה לבצע פעולה זו', 'error');
-      } else if (status === 400) {
-        // שגיאת וולידציה
-        const errors = error.response.data;
-        let errorMessage = 'שגיאה בנתונים שהוזנו:';
-        
-        // במידה והשגיאה היא אובייקט עם שדות שגיאה
-        if (typeof errors === 'object') {
-          Object.entries(errors).forEach(([field, messages]) => {
-            errorMessage += `\n- ${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`;
-          });
-        } else if (typeof errors === 'string') {
-          errorMessage = errors;
-        }
-        
-        showNotification(errorMessage, 'error');
-      } else {
-        // שגיאות אחרות
-        showNotification(`שגיאה בשרת: ${error.response.data.detail || 'נא לנסות שוב מאוחר יותר'}`, 'error');
+      let message = 'שגיאה בשרת';
+      if (data.detail) {
+        message = data.detail;
+      } else if (data.message) {
+        message = data.message;
+      } else if (typeof data === 'string') {
+        message = data;
       }
+      
+      if (showNotification) {
+        showNotification(message, 'error');
+      }
+      
+      return { status, message };
     } else if (error.request) {
-      // לא התקבלה תשובה מהשרת
-      showNotification('לא ניתן להתחבר לשרת, אנא בדוק את החיבור לאינטרנט', 'error');
+      // Request was made but no response
+      const message = 'לא ניתן להתחבר לשרת. בדוק את החיבור שלך.';
+      if (showNotification) {
+        showNotification(message, 'error');
+      }
+      return { status: 0, message };
     } else {
-      // שגיאה בהגדרת הבקשה
-      showNotification(`שגיאה בהגדרת הבקשה: ${error.message}`, 'error');
+      // Error in setting up the request
+      const message = 'שגיאה בהגדרת הבקשה: ' + error.message;
+      if (showNotification) {
+        showNotification(message, 'error');
+      }
+      return { status: 0, message };
     }
-    
-    return Promise.reject(error);
   },
 
-  // === קבלת רשימת צוותים ===
+  // Teams API (uses hardcoded values if no endpoint exists)
   fetchTeams: async () => {
     try {
-      // בהנחה שיש נקודת קצה לקבלת רשימת צוותים
-      const response = await axios.get(`${API_BASE_URL}/teams/`);
-      return response.data;
+      // Try to get teams from API first
+      try {
+        const response = await axios.get(`${TRAININGS_BASE_URL}/teams/`);
+        return response.data;
+      } catch (error) {
+        // If API endpoint doesn't exist, return hardcoded values
+        console.log('Using hardcoded teams data');
+        return ['חוד', 'אתק', 'רתק', 'מפלג'];
+      }
     } catch (error) {
-      // אם אין נקודת קצה ספציפית, נשתמש ברשימה קבועה
-      console.warn('Using hardcoded teams data');
-      return ['חוד', 'אתק', 'רתק', 'מפלג'];
+      console.error('Error fetching teams:', error);
+      throw error;
     }
   },
 
-  // === אר"ן צוותי - Team Training ===
-  
-  fetchTeamTrainings: async () => {
+  // Team Training API
+  fetchTeamTrainings: async (filters = {}) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/team/`);
+      let url = `${TRAININGS_BASE_URL}/team/`;
+      
+      // Add filters if provided
+      if (Object.keys(filters).length > 0) {
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) queryParams.append(key, value);
+        });
+        url += `?${queryParams.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
       console.error('Error fetching team trainings:', error);
@@ -93,7 +86,7 @@ const apiService = {
   
   createTeamTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/team/`, data);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/team/`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating team training:', error);
@@ -103,7 +96,7 @@ const apiService = {
   
   updateTeamTraining: async (id, data) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/team/${id}/`, data);
+      const response = await axios.put(`${TRAININGS_BASE_URL}/team/${id}/`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating team training:', error);
@@ -113,19 +106,39 @@ const apiService = {
   
   deleteTeamTraining: async (id) => {
     try {
-      await axios.delete(`${API_BASE_URL}/trainings/team/${id}/`);
-      return true;
+      const response = await axios.delete(`${TRAININGS_BASE_URL}/team/${id}/`);
+      return response.data;
     } catch (error) {
       console.error('Error deleting team training:', error);
       throw error;
     }
   },
-
-  // === חיילים - Soldiers ===
   
-  fetchSoldiers: async () => {
+  getTeamStats: async (team) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/`);
+      const response = await axios.get(`${TRAININGS_BASE_URL}/team/stats_by_team/?team=${team}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching team stats:', error);
+      throw error;
+    }
+  },
+  
+  // Soldiers API
+  fetchSoldiers: async (filters = {}) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/soldiers/`;
+      
+      // Add filters if provided
+      if (Object.keys(filters).length > 0) {
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) queryParams.append(key, value);
+        });
+        url += `?${queryParams.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
       console.error('Error fetching soldiers:', error);
@@ -133,11 +146,65 @@ const apiService = {
     }
   },
   
-  // === חסמי עורקים - Tourniquet Training ===
-  
-  fetchTourniquetTrainings: async () => {
+  createSoldier: async (data) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/tourniquet/`);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/soldiers/`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating soldier:', error);
+      throw error;
+    }
+  },
+  
+  getSoldierStats: async (id) => {
+    try {
+      const response = await axios.get(`${TRAININGS_BASE_URL}/soldiers/${id}/stats/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching soldier stats:', error);
+      throw error;
+    }
+  },
+  
+  getSoldiersByTeam: async (team) => {
+    try {
+      const response = await axios.get(`${TRAININGS_BASE_URL}/soldiers/by_team/?team=${team}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching soldiers by team:', error);
+      throw error;
+    }
+  },
+  
+  getUntrainedSoldiers: async (team) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/soldiers/untrained_this_month/`;
+      if (team) {
+        url += `?team=${team}`;
+      }
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching untrained soldiers:', error);
+      throw error;
+    }
+  },
+  
+  // Tourniquet Training API
+  fetchTourniquetTrainings: async (filters = {}) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/tourniquet/`;
+      
+      // Add filters if provided
+      if (Object.keys(filters).length > 0) {
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) queryParams.append(key, value);
+        });
+        url += `?${queryParams.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
       console.error('Error fetching tourniquet trainings:', error);
@@ -147,7 +214,7 @@ const apiService = {
   
   createTourniquetTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/`, data);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/tourniquet/`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating tourniquet training:', error);
@@ -155,9 +222,10 @@ const apiService = {
     }
   },
   
-  bulkCreateTourniquetTraining: async (dataArray) => {
+  // Added both versions to ensure compatibility
+  bulkCreateTourniquetTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/bulk_create/`, dataArray);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/tourniquet/bulk_create/`, data);
       return response.data;
     } catch (error) {
       console.error('Error bulk creating tourniquet trainings:', error);
@@ -165,31 +233,55 @@ const apiService = {
     }
   },
   
-  getUntrainedSoldiers: async () => {
+  bulkCreateTourniquetTrainings: async (data) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/untrained_this_month/`);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/tourniquet/bulk_create/`, data);
       return response.data;
     } catch (error) {
-      console.error('Error fetching untrained soldiers:', error);
+      console.error('Error bulk creating tourniquet trainings:', error);
       throw error;
     }
   },
   
-  getSoldierStats: async (soldierId) => {
+  getCurrentMonthTourniquetTrainings: async (team) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/soldiers/${soldierId}/stats/`);
+      let url = `${TRAININGS_BASE_URL}/tourniquet/current_month/`;
+      if (team) {
+        url += `?team=${team}`;
+      }
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
-      console.error('Error fetching soldier stats:', error);
+      console.error('Error fetching current month tourniquet trainings:', error);
       throw error;
     }
   },
   
-  // === חובשים - Medics ===
-  
-  fetchMedics: async () => {
+  getTourniquetTrainingsByTeam: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medics/`);
+      const response = await axios.get(`${TRAININGS_BASE_URL}/tourniquet/by_team/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching tourniquet trainings by team:', error);
+      throw error;
+    }
+  },
+  
+  // Medics API
+  fetchMedics: async (filters = {}) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/medics/`;
+      
+      // Add filters if provided
+      if (Object.keys(filters).length > 0) {
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) queryParams.append(key, value);
+        });
+        url += `?${queryParams.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
       console.error('Error fetching medics:', error);
@@ -197,11 +289,55 @@ const apiService = {
     }
   },
   
-  // === תרגולי חובשים - Medic Training ===
-  
-  fetchMedicTrainings: async () => {
+  getMedicStats: async (id) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medic-training/`);
+      const response = await axios.get(`${TRAININGS_BASE_URL}/medics/${id}/stats/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching medic stats:', error);
+      throw error;
+    }
+  },
+  
+  getMedicsByTeam: async (team) => {
+    try {
+      const response = await axios.get(`${TRAININGS_BASE_URL}/medics/by_team/?team=${team}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching medics by team:', error);
+      throw error;
+    }
+  },
+  
+  getUntrainedMedics: async (team) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/medics/untrained_this_month/`;
+      if (team) {
+        url += `?team=${team}`;
+      }
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching untrained medics:', error);
+      throw error;
+    }
+  },
+  
+  // Medic Training API - IMPORTANT: uses /medic/ endpoint, not /medic-training/
+  fetchMedicTrainings: async (filters = {}) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/medic/`;
+      
+      // Add filters if provided
+      if (Object.keys(filters).length > 0) {
+        const queryParams = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) queryParams.append(key, value);
+        });
+        url += `?${queryParams.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
       console.error('Error fetching medic trainings:', error);
@@ -211,7 +347,7 @@ const apiService = {
   
   createMedicTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/medic-training/`, data);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/medic/`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating medic training:', error);
@@ -219,9 +355,9 @@ const apiService = {
     }
   },
   
-  bulkCreateMedicTraining: async (dataArray) => {
+  bulkCreateMedicTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/medic-training/bulk_create/`, dataArray);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/medic/bulk_create/`, data);
       return response.data;
     } catch (error) {
       console.error('Error bulk creating medic trainings:', error);
@@ -229,31 +365,53 @@ const apiService = {
     }
   },
   
-  updateMedicTraining: async (id, data) => {
+  bulkCreateMedicTrainings: async (data) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/medic-training/${id}/`, data);
+      const response = await axios.post(`${TRAININGS_BASE_URL}/medic/bulk_create/`, data);
       return response.data;
     } catch (error) {
-      console.error('Error updating medic training:', error);
+      console.error('Error bulk creating medic trainings:', error);
       throw error;
     }
   },
   
-  getMedicStats: async (medicId) => {
+  getCurrentMonthMedicTrainings: async (team) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medics/${medicId}/stats/`);
+      let url = `${TRAININGS_BASE_URL}/medic/current_month/`;
+      if (team) {
+        url += `?team=${team}`;
+      }
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
-      console.error('Error fetching medic stats:', error);
+      console.error('Error fetching current month medic trainings:', error);
       throw error;
     }
   },
   
-  // === סטטיסטיקות - Statistics ===
-  
-  fetchTrainingStats: async () => {
+  getMedicTrainingsByType: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/stats/`);
+      const response = await axios.get(`${TRAININGS_BASE_URL}/medic/by_type/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching medic trainings by type:', error);
+      throw error;
+    }
+  },
+  
+  // Stats API
+  getTrainingStats: async (period, team) => {
+    try {
+      let url = `${TRAININGS_BASE_URL}/stats/`;
+      const params = new URLSearchParams();
+      if (period) params.append('period', period);
+      if (team) params.append('team', team);
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await axios.get(url);
       return response.data;
     } catch (error) {
       console.error('Error fetching training stats:', error);
