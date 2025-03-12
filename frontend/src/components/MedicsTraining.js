@@ -68,6 +68,7 @@ import {
 
 // רכיב תרגול חובשים - חדש ומלא
 const MedicsTraining = ({ showNotification }) => {
+  
   const [trainings, setTrainings] = useState([]);
   const [medics, setMedics] = useState([]);
   const [teams, setTeams] = useState([]);

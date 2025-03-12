@@ -41,8 +41,6 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
   Refresh as RefreshIcon,
   Close as CloseIcon,
   Check as CheckIcon,
@@ -55,7 +53,6 @@ import {
   CalendarToday as CalendarTodayIcon,
   Save as SaveIcon,
   ArrowForward as ArrowForwardIcon,
-  History as HistoryIcon,
   TrendingUp as TrendingUpIcon
 } from '@mui/icons-material';
 

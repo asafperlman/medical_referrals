@@ -7,7 +7,6 @@ import {
   Grid,
   Card,
   CardContent,
-  CardHeader,
   IconButton,
   Tooltip,
   Table,
@@ -25,14 +24,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip,
   Rating,
-  Avatar,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
+  Chip,
   CircularProgress,
   InputAdornment
 } from '@mui/material';
@@ -42,14 +35,11 @@ import {
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
   Close as CloseIcon,
+  Event as EventIcon,
+  LocationOn as LocationOnIcon,
   Save as SaveIcon,
-  CalendarToday as CalendarTodayIcon,
-  Group as GroupIcon,
   Assignment as AssignmentIcon,
-  Flag as FlagIcon,
-  Comment as CommentIcon,
-  Search as SearchIcon,
-  Warning as WarningIcon
+  Star as StarIcon
 } from '@mui/icons-material';
 
 import * as trainingService from '../services/trainingService';
@@ -60,6 +50,15 @@ const formatDate = (dateString) => {
   return date.toLocaleDateString('he-IL');
 };
 
+// Helper function for current month
+const getCurrentMonthYear = () => {
+  const now = new Date();
+  return {
+    month: now.getMonth(),
+    year: now.getFullYear()
+  };
+};
+
 // רכיב תרגול אר"ן צוותי
 const TeamTraining = ({ showNotification }) => {
   const [trainings, setTrainings] = useState([]);
@@ -67,73 +66,54 @@ const TeamTraining = ({ showNotification }) => {
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [selectedTraining, setSelectedTraining] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterTeam, setFilterTeam] = useState('');
-
   const [formData, setFormData] = useState({
-    date: '',
+    date: new Date().toISOString().split('T')[0],
     team: '',
     scenario: '',
     location: '',
     notes: '',
-    performance_rating: 3,
+    performance_rating: 3
   });
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [showNotification]);
 
   const fetchData = async () => {
-    setLoading(true);
     try {
-      // Fetch teams - first try the API, then fall back to default teams if needed
+      setLoading(true);
+      
+      // Fetch teams data
       let teamsData;
       try {
         teamsData = await trainingService.getTeams();
-      } catch (error) {
-        console.warn("Failed to fetch teams, using default teams");
+      } catch (apiError) {
+        console.error('שגיאה בטעינת נתוני צוותים:', apiError);
         teamsData = ['חוד', 'אתק', 'רתק', 'מפלג'];
+        showNotification('לא ניתן להתחבר לשרת הצוותים. מציג נתונים מקומיים.', 'warning');
       }
       
-      // Fetch team trainings from the API
-      const trainingsData = await trainingService.getTeamTrainings();
+      // Fetch team trainings data
+      let trainingsData;
+      try {
+        trainingsData = await trainingService.getTeamTrainings();
+      } catch (apiError) {
+        console.error('שגיאה בטעינת נתוני אימוני צוות:', apiError);
+        trainingsData = [];
+        showNotification('לא ניתן להתחבר לשרת האימונים. מציג נתונים מקומיים.', 'warning');
+      }
       
+      // Update state with fetched data
       setTeams(teamsData);
       setTrainings(trainingsData);
-    } catch (error) {
-      console.error('Error fetching training data:', error);
-      trainingService.handleApiError(error, showNotification);
+    } catch (err) {
+      console.error('שגיאה חמורה בטעינת נתונים:', err);
+      showNotification('שגיאה בטעינת נתונים', 'error');
     } finally {
       setLoading(false);
     }
   };
-  // בחלק של TeamTraining
-  const handleSaveTeamTraining = async () => {
-    try {
-      if (selectedTraining) {
-        // עדכון תרגול קיים
-        const response = await trainingService.updateTeamTraining(selectedTraining.id, formData);
-        if (response && response.data) {
-          const updatedTrainings = trainings.map((training) =>
-            training.id === selectedTraining.id ? response.data : training
-          );
-          setTrainings(updatedTrainings);
-          showNotification('התרגיל עודכן בהצלחה');
-        }
-      } else {
-        // יצירת תרגול חדש
-        const response = await trainingService.createTeamTraining(formData);
-        if (response && response.data) {
-          setTrainings(prevTrainings => [...prevTrainings, response.data]);
-          showNotification('התרגיל נוסף בהצלחה');
-        }
-      }
-      setOpenForm(false);
-    } catch (error) {
-      console.error('Error saving training:', error);
-      showNotification('שגיאה בשמירת הנתונים', 'error');
-    }
-  };
+
   const handleAddTraining = () => {
     setSelectedTraining(null);
     setFormData({
@@ -142,7 +122,7 @@ const TeamTraining = ({ showNotification }) => {
       scenario: '',
       location: '',
       notes: '',
-      performance_rating: 3,
+      performance_rating: 3
     });
     setOpenForm(true);
   };
@@ -155,7 +135,7 @@ const TeamTraining = ({ showNotification }) => {
       scenario: training.scenario,
       location: training.location,
       notes: training.notes || '',
-      performance_rating: training.performance_rating,
+      performance_rating: training.performance_rating
     });
     setOpenForm(true);
   };
@@ -166,29 +146,24 @@ const TeamTraining = ({ showNotification }) => {
   };
 
   const handleSaveTraining = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
+      
       if (selectedTraining) {
         // Update existing training
-        const updatedTraining = await trainingService.updateTeamTraining(selectedTraining.id, formData);
-        
-        // Update local state after successful API call
-        const updatedTrainings = trainings.map((training) =>
-          training.id === selectedTraining.id ? updatedTraining : training
-        );
-        setTrainings(updatedTrainings);
+        await trainingService.updateTeamTraining(selectedTraining.id, formData);
         showNotification('התרגיל עודכן בהצלחה', 'success');
       } else {
         // Create new training
-        const newTraining = await trainingService.createTeamTraining(formData);
-        
-        // Update local state after successful API call
-        setTrainings([...trainings, newTraining]);
+        await trainingService.createTeamTraining(formData);
         showNotification('התרגיל נוסף בהצלחה', 'success');
       }
+      
+      // Refresh data
+      await fetchData();
       setOpenForm(false);
     } catch (error) {
-      console.error('Error saving training:', error);
+      console.error('שגיאה בשמירת נתוני תרגיל:', error);
       trainingService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
@@ -196,38 +171,73 @@ const TeamTraining = ({ showNotification }) => {
   };
 
   const handleDeleteTraining = async (id) => {
-    try {
-      setLoading(true);
-      // Delete training via API
-      await trainingService.deleteTeamTraining(id);
-      
-      // Update local state after successful API call
-      const updatedTrainings = trainings.filter((training) => training.id !== id);
-      setTrainings(updatedTrainings);
-      showNotification('התרגיל נמחק בהצלחה', 'info');
-    } catch (error) {
-      console.error('Error deleting training:', error);
-      trainingService.handleApiError(error, showNotification);
-    } finally {
-      setLoading(false);
+    if (window.confirm('האם אתה בטוח שברצונך למחוק תרגיל זה?')) {
+      try {
+        setLoading(true);
+        
+        // Delete training
+        await trainingService.deleteTeamTraining(id);
+        
+        // Refresh data
+        await fetchData();
+        showNotification('התרגיל נמחק בהצלחה', 'success');
+      } catch (error) {
+        console.error('שגיאה במחיקת תרגיל:', error);
+        trainingService.handleApiError(error, showNotification);
+      } finally {
+        setLoading(false);
+      }
     }
   };
-  
-  const handleRefresh = async () => {
-    await fetchData();
-    showNotification('הנתונים עודכנו בהצלחה', 'success');
+
+  // Group trainings by month
+  const groupByMonth = () => {
+    const grouped = {};
+    
+    trainings.forEach(training => {
+      const date = new Date(training.date);
+      const monthYear = `${date.getMonth()}-${date.getFullYear()}`;
+      
+      if (!grouped[monthYear]) {
+        grouped[monthYear] = {
+          month: date.getMonth(),
+          year: date.getFullYear(),
+          trainings: []
+        };
+      }
+      
+      grouped[monthYear].trainings.push(training);
+    });
+    
+    // Sort by date (newest first)
+    return Object.values(grouped).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
   };
 
-  const filteredTrainings = trainings.filter(training => {
-    const matchesSearch = searchQuery === '' || 
-      training.scenario?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      training.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      training.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Get trainings for the current month
+  const getCurrentMonthTrainings = () => {
+    const { month, year } = getCurrentMonthYear();
     
-    const matchesTeam = filterTeam === '' || training.team === filterTeam;
+    return trainings.filter(training => {
+      const date = new Date(training.date);
+      return date.getMonth() === month && date.getFullYear() === year;
+    });
+  };
+
+  // Get team performance for the current month
+  const getTeamPerformance = (team) => {
+    const currentMonthTrainings = getCurrentMonthTrainings().filter(t => t.team === team);
     
-    return matchesSearch && matchesTeam;
-  });
+    if (currentMonthTrainings.length === 0) return { count: 0, avg: 0 };
+    
+    const totalRating = currentMonthTrainings.reduce((sum, t) => sum + t.performance_rating, 0);
+    return {
+      count: currentMonthTrainings.length,
+      avg: (totalRating / currentMonthTrainings.length).toFixed(1)
+    };
+  };
 
   if (loading) {
     return (
@@ -237,37 +247,44 @@ const TeamTraining = ({ showNotification }) => {
     );
   }
 
+  const groupedTrainings = groupByMonth();
+  const monthNames = [
+    'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+    'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'
+  ];
+
   return (
     <Box sx={{ animation: 'fadeIn 0.5s', '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } } }}>
+      {/* כותרת ופעולות */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" component="h2" fontWeight="bold">
           תרגילי אר"ן צוותיים
         </Typography>
-        <Box display="flex">
-          <Button 
-            variant="outlined" 
-            color="primary" 
-            startIcon={<RefreshIcon />} 
-            onClick={handleRefresh}
-            sx={{ 
+        <Box>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<RefreshIcon />}
+            onClick={fetchData}
+            sx={{
               mr: 1,
-              borderRadius: 2, 
+              borderRadius: 2,
               textTransform: 'none'
             }}
           >
             רענן
           </Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />} 
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
             onClick={handleAddTraining}
-            sx={{ 
-              borderRadius: 2, 
+            sx={{
+              borderRadius: 2,
               textTransform: 'none',
               boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
               '&:hover': {
-                boxShadow: '0 6px 10px rgba(0,0,0,0.2)',
+                boxShadow: '0 6px 10px rgba(0,0,0,0.2)'
               }
             }}
           >
@@ -276,100 +293,142 @@ const TeamTraining = ({ showNotification }) => {
         </Box>
       </Box>
 
-      <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={8}>
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              gap: 1,
-              flexWrap: { xs: 'wrap', md: 'nowrap' } 
-            }}
-          >
-            <TextField
-              placeholder="חפש לפי תרחיש או מיקום"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              variant="outlined"
-              size="small"
-              fullWidth
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ 
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
+      {/* סטטיסטיקה חודשית */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        {teams.map((team) => {
+          const performance = getTeamPerformance(team);
+          return (
+            <Grid item xs={12} sm={6} md={3} key={team}>
+              <Card
+                sx={{
                   borderRadius: 2,
-                },
-              }}
-            />
-            <FormControl 
-              variant="outlined" 
-              size="small" 
-              sx={{ 
-                minWidth: 120,
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            >
-              <InputLabel id="team-filter-label">סינון לפי צוות</InputLabel>
-              <Select
-                labelId="team-filter-label"
-                value={filterTeam}
-                onChange={(e) => setFilterTeam(e.target.value)}
-                label="סינון לפי צוות"
-              >
-                <MenuItem value="">הכל</MenuItem>
-                {teams.map((team) => (
-                  <MenuItem key={team} value={team}>
-                    {team}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Tooltip title="אפס סינון">
-              <IconButton 
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterTeam('');
-                }}
-                sx={{ 
-                  bgcolor: 'white',
-                  '&:hover': { bgcolor: '#f5f5f5' } 
+                  boxShadow: theme => performance.count > 0 
+                    ? `0 6px 12px ${team === 'אתק' ? 'rgba(25, 118, 210, 0.15)' : 
+                      team === 'רתק' ? 'rgba(76, 175, 80, 0.15)' : 
+                      team === 'חוד' ? 'rgba(255, 152, 0, 0.15)' : 'rgba(156, 39, 176, 0.15)'}`
+                    : theme.shadows[1],
+                  border: theme => performance.count > 0 
+                    ? `1px solid ${team === 'אתק' ? 'rgba(25, 118, 210, 0.2)' : 
+                      team === 'רתק' ? 'rgba(76, 175, 80, 0.2)' : 
+                      team === 'חוד' ? 'rgba(255, 152, 0, 0.2)' : 'rgba(156, 39, 176, 0.2)'}` 
+                    : '1px solid rgba(0, 0, 0, 0.12)',
+                  height: '100%',
+                  transition: 'transform 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)'
+                  }
                 }}
               >
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Grid>
+                <CardContent>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Chip
+                      label={team}
+                      sx={{
+                        fontWeight: 'bold',
+                        bgcolor: team === 'אתק' ? '#bbdefb' : 
+                                 team === 'רתק' ? '#c8e6c9' : 
+                                 team === 'חוד' ? '#ffe0b2' : '#e1bee7',
+                        color: 'rgba(0, 0, 0, 0.7)',
+                        px: 1
+                      }}
+                    />
+                    <Rating
+                      value={performance.avg}
+                      precision={0.5}
+                      readOnly
+                      size="small"
+                    />
+                  </Box>
+                  
+                  <Typography variant="h4" fontWeight="bold" align="center" mb={1}>
+                    {performance.count}
+                  </Typography>
+                  
+                  <Typography variant="body2" color="text.secondary" align="center">
+                    {performance.count === 0 ? 'לא בוצעו תרגילים החודש' : 
+                     performance.count === 1 ? 'תרגיל אחד החודש' : 
+                     `${performance.count} תרגילים החודש`}
+                  </Typography>
+                  
+                  {performance.count > 0 && (
+                    <Box display="flex" justifyContent="center" mt={1}>
+                      <Chip
+                        icon={<StarIcon fontSize="small" />}
+                        label={`ממוצע ציון: ${performance.avg}`}
+                        size="small"
+                        sx={{ bgcolor: 'rgba(0, 0, 0, 0.05)' }}
+                      />
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
       </Grid>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
-          <Paper 
-            elevation={2}
-            sx={{ 
+      {/* תרגילים לפי חודשים */}
+      {groupedTrainings.length === 0 ? (
+        <Paper
+          sx={{
+            p: 4,
+            borderRadius: 2,
+            textAlign: 'center'
+          }}
+        >
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            אין תרגילים
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
+            לא נמצאו תרגילי אר"ן צוותיים במערכת.
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={handleAddTraining}
+            sx={{ mt: 1, borderRadius: 2 }}
+          >
+            הוסף תרגיל חדש
+          </Button>
+        </Paper>
+      ) : (
+        groupedTrainings.map((group) => (
+          <Paper
+            key={`${group.month}-${group.year}`}
+            sx={{
+              mb: 3,
               borderRadius: 2,
               overflow: 'hidden'
             }}
           >
-            <Box p={0.5} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
-              <Typography variant="subtitle2" sx={{ p: 1.5, fontWeight: 'bold' }}>
-                רשימת תרגילים {filteredTrainings.length > 0 && `(${filteredTrainings.length})`}
+            <Box
+              p={2}
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <Typography variant="h6" fontWeight="medium">
+                {monthNames[group.month]} {group.year}
               </Typography>
+              <Chip
+                label={`${group.trainings.length} תרגילים`}
+                size="small"
+                sx={{
+                  bgcolor: 'rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                }}
+              />
             </Box>
+            
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow sx={{ bgcolor: '#f9f9f9' }}>
+                  <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                     <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>תרחיש</TableCell>
@@ -379,105 +438,56 @@ const TeamTraining = ({ showNotification }) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredTrainings.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center">
-                        <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                          <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
-                          <Typography sx={{ color: 'text.secondary' }}>לא נמצאו תרגילים</Typography>
-                          {searchQuery || filterTeam ? (
-                            <Button 
-                              variant="outlined" 
-                              size="small" 
-                              startIcon={<RefreshIcon />}
-                              onClick={() => {
-                                setSearchQuery('');
-                                setFilterTeam('');
-                              }}
-                              sx={{ mt: 1 }}
-                            >
-                              אפס סינון
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="contained" 
-                              color="primary" 
-                              size="small"
-                              startIcon={<AddIcon />}
-                              onClick={handleAddTraining}
-                              sx={{ mt: 1 }}
-                            >
-                              הוסף תרגיל חדש
-                            </Button>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredTrainings.map((training) => (
-                      <TableRow 
-                        key={training.id} 
-                        hover
-                        sx={{ 
-                          transition: 'all 0.2s',
+                  {group.trainings
+                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .map((training) => (
+                      <TableRow
+                        key={training.id}
+                        sx={{
                           '&:hover': {
-                            bgcolor: 'rgba(25, 118, 210, 0.04)',
-                          } 
+                            bgcolor: 'rgba(0, 0, 0, 0.03)'
+                          }
                         }}
                       >
                         <TableCell>{formatDate(training.date)}</TableCell>
                         <TableCell>
-                          <Chip 
-                            label={training.team} 
-                            size="small" 
-                            sx={{ 
-                              bgcolor: training.team === 'אתק' ? '#bbdefb' :
-                                      training.team === 'רתק' ? '#c8e6c9' :
+                          <Chip
+                            label={training.team}
+                            size="small"
+                            sx={{
+                              fontWeight: 'medium',
+                              bgcolor: training.team === 'אתק' ? '#bbdefb' : 
+                                      training.team === 'רתק' ? '#c8e6c9' : 
                                       training.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                              color: 'rgba(0, 0, 0, 0.7)',
-                              fontWeight: 'bold',
-                              '& .MuiChip-label': { px: 1 }
-                            }} 
+                              color: 'rgba(0, 0, 0, 0.7)'
+                            }}
                           />
                         </TableCell>
                         <TableCell>{training.scenario}</TableCell>
                         <TableCell>{training.location}</TableCell>
                         <TableCell>
-                          <Rating 
-                            value={training.performance_rating} 
-                            readOnly 
+                          <Rating
+                            value={training.performance_rating}
+                            readOnly
                             size="small"
-                            sx={{
-                              '& .MuiRating-iconFilled': {
-                                color: training.performance_rating >= 4 ? 'success.main' : 
-                                      training.performance_rating >= 3 ? 'warning.main' : 'error.main',
-                              }
-                            }}
                           />
                         </TableCell>
                         <TableCell>
-                          <Box sx={{ display: 'flex' }}>
+                          <Box>
                             <Tooltip title="ערוך">
-                              <IconButton 
-                                size="small" 
-                                onClick={() => handleEditTraining(training)} 
-                                sx={{ 
-                                  mr: 1,
-                                  color: 'primary.main',
-                                  '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.08)' },
-                                }}
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => handleEditTraining(training)}
                               >
                                 <EditIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="מחק">
-                              <IconButton 
-                                size="small" 
-                                color="error" 
+                              <IconButton
+                                size="small"
+                                color="error"
                                 onClick={() => handleDeleteTraining(training.id)}
-                                sx={{ 
-                                  '&:hover': { bgcolor: 'rgba(211, 47, 47, 0.08)' },
-                                }}
                               >
                                 <DeleteIcon fontSize="small" />
                               </IconButton>
@@ -485,191 +495,70 @@ const TeamTraining = ({ showNotification }) => {
                           </Box>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
+                    ))}
                 </TableBody>
               </Table>
             </TableContainer>
           </Paper>
-        </Grid>
+        ))
+      )}
 
-        <Grid item xs={12} md={4}>
-          <Card 
-            elevation={2} 
-            sx={{ 
-              height: '100%', 
-              display: 'flex', 
-              flexDirection: 'column',
-              borderRadius: 2
-            }}
-          >
-            <CardHeader 
-              title="סיכום תרגילים" 
-              titleTypographyProps={{ fontWeight: 'bold' }}
-              sx={{ 
-                bgcolor: '#f5f5f5', 
-                borderBottom: '1px solid #e0e0e0',
-                p: 2
-              }}
-            />
-            <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-              <List sx={{ mb: 2 }}>
-                {teams.map((team) => {
-                  const teamTrainings = trainings.filter((t) => t.team === team);
-                  const count = teamTrainings.length;
-                  const avgRating = count > 0 ? teamTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / count : 0;
-                  const bgColor = team === 'אתק' ? '#bbdefb' :
-                                 team === 'רתק' ? '#c8e6c9' :
-                                 team === 'חוד' ? '#ffe0b2' : '#e1bee7';
-                  
-                  return (
-                    <ListItem 
-                      key={team} 
-                      sx={{ 
-                        mb: 1, 
-                        borderRadius: 2,
-                        bgcolor: 'white',
-                        border: '1px solid #eee',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                          transform: 'translateY(-2px)',
-                        }
-                      }}
-                    >
-                      <ListItemIcon>
-                        <Avatar 
-                          sx={{ 
-                            bgcolor: bgColor,
-                            color: 'rgba(0, 0, 0, 0.7)',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {team.charAt(0)}
-                        </Avatar>
-                      </ListItemIcon>
-                      <ListItemText 
-                        primary={`צוות ${team}`} 
-                        secondary={`${count} תרגילים`}
-                        primaryTypographyProps={{ fontWeight: 'bold' }}
-                      />
-                      {count > 0 && (
-                        <Box display="flex" alignItems="center">
-                          <Rating 
-                            value={avgRating} 
-                            precision={0.5} 
-                            readOnly 
-                            size="small" 
-                            sx={{
-                              '& .MuiRating-iconFilled': {
-                                color: avgRating >= 4 ? 'success.main' : 
-                                       avgRating >= 3 ? 'warning.main' : 'error.main',
-                              }
-                            }}
-                          />
-                        </Box>
-                      )}
-                    </ListItem>
-                  );
-                })}
-              </List>
-              <Divider sx={{ my: 2 }} />
-              <Box 
-                textAlign="center" 
-                mt="auto" 
-                sx={{ 
-                  p: 2, 
-                  borderRadius: 2, 
-                  bgcolor: 'primary.light', 
-                  color: 'primary.contrastText' 
-                }}
-              >
-                <Typography variant="body2" fontWeight="medium" gutterBottom>
-                  סה"כ תרגילים שבוצעו
-                </Typography>
-                <Typography variant="h3" fontWeight="bold">
-                  {trainings.length}
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Dialog 
-        open={openForm} 
-        onClose={() => setOpenForm(false)} 
-        fullWidth 
+      {/* טופס להוספה/עריכה */}
+      <Dialog
+        open={openForm}
+        onClose={() => setOpenForm(false)}
+        fullWidth
         maxWidth="sm"
         PaperProps={{
           elevation: 5,
           sx: { borderRadius: 2 }
         }}
       >
-        <DialogTitle 
-          sx={{ 
-            bgcolor: 'primary.main', 
-            color: 'white', 
+        <DialogTitle
+          sx={{
+            bgcolor: 'primary.main',
+            color: 'white',
             p: 2
           }}
         >
-          <Box display="flex" alignItems="center">
-            {selectedTraining ? (
-              <EditIcon sx={{ mr:.5 }} />
-            ) : (
-              <AddIcon sx={{ mr: .5 }} />
-            )}
-            <Typography variant="h6">
-              {selectedTraining ? 'עריכת תרגיל' : 'הוספת תרגיל חדש'}
-            </Typography>
-          </Box>
+          {selectedTraining ? 'עריכת תרגיל' : 'תרגיל חדש'}
         </DialogTitle>
         <DialogContent dividers>
-          <Grid container spacing={2} sx={{ pt: 1 }}>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6}>
               <TextField
                 name="date"
                 label="תאריך"
                 type="date"
                 fullWidth
-                required
                 value={formData.date}
                 onChange={handleFormChange}
                 InputLabelProps={{ shrink: true }}
+                required
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <CalendarTodayIcon fontSize="small" />
+                      <EventIcon fontSize="small" />
                     </InputAdornment>
-                  ),
+                  )
                 }}
-                error={!formData.date}
-                helperText={!formData.date ? "שדה חובה" : ""}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required error={!formData.team}>
-                <InputLabel id="team-label">צוות</InputLabel>
-                <Select 
-                  name="team" 
-                  value={formData.team} 
-                  onChange={handleFormChange} 
+              <FormControl fullWidth required>
+                <InputLabel>צוות</InputLabel>
+                <Select
+                  name="team"
+                  value={formData.team}
+                  onChange={handleFormChange}
                   label="צוות"
-                  labelId="team-label"
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <GroupIcon fontSize="small" />
-                    </InputAdornment>
-                  }
                 >
-                  <MenuItem value="" disabled>בחר צוות</MenuItem>
                   {teams.map((team) => (
                     <MenuItem key={team} value={team}>
                       {team}
                     </MenuItem>
                   ))}
                 </Select>
-                {!formData.team && <Typography variant="caption" color="error">שדה חובה</Typography>}
               </FormControl>
             </Grid>
             <Grid item xs={12}>
@@ -677,18 +566,17 @@ const TeamTraining = ({ showNotification }) => {
                 name="scenario"
                 label="תרחיש"
                 fullWidth
-                required
                 value={formData.scenario}
                 onChange={handleFormChange}
+                required
+                placeholder="תאר את התרחיש (לדוגמה: פצוע אחד - פגיעת ראש)"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
                       <AssignmentIcon fontSize="small" />
                     </InputAdornment>
-                  ),
+                  )
                 }}
-                error={!formData.scenario}
-                helperText={!formData.scenario ? "שדה חובה" : ""}
               />
             </Grid>
             <Grid item xs={12}>
@@ -698,14 +586,28 @@ const TeamTraining = ({ showNotification }) => {
                 fullWidth
                 value={formData.location}
                 onChange={handleFormChange}
-                placeholder="הזן את מיקום התרגיל"
+                required
+                placeholder="היכן התבצע התרגיל (לדוגמה: שטח אימונים צפוני)"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <FlagIcon fontSize="small" />
+                      <LocationOnIcon fontSize="small" />
                     </InputAdornment>
-                  ),
+                  )
                 }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Typography variant="body2" gutterBottom>
+                ציון ביצוע
+              </Typography>
+              <Rating
+                name="performance_rating"
+                value={formData.performance_rating}
+                onChange={(event, newValue) => {
+                  setFormData({ ...formData, performance_rating: newValue });
+                }}
+                size="large"
               />
             </Grid>
             <Grid item xs={12}>
@@ -717,58 +619,25 @@ const TeamTraining = ({ showNotification }) => {
                 rows={3}
                 value={formData.notes}
                 onChange={handleFormChange}
-                placeholder="הערות נוספות לגבי התרגיל"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <CommentIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                }}
+                placeholder="הוסף הערות רלוונטיות לתרגיל, נקודות לשימור ולשיפור"
               />
-            </Grid>
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid rgba(0,0,0,0.23)', borderRadius: 1, p: 2 }}>
-                <Typography variant="body1" sx={{ mr: 2 }}>
-                  דירוג ביצוע:
-                </Typography>
-                <Rating
-                  name="performance_rating"
-                  value={Number(formData.performance_rating)}
-                  onChange={(event, newValue) =>
-                    setFormData({ ...formData, performance_rating: newValue })
-                  }
-                  size="large"
-                  sx={{
-                    '& .MuiRating-iconFilled': {
-                      color: formData.performance_rating >= 4 ? 'success.main' : 
-                             formData.performance_rating >= 3 ? 'warning.main' : 'error.main',
-                    }
-                  }}
-                />
-                <Box sx={{ ml: 2, minWidth: '24px' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {formData.performance_rating}/5
-                  </Typography>
-                </Box>
-              </Box>
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-          <Button 
+          <Button
             onClick={() => setOpenForm(false)}
             variant="outlined"
             startIcon={<CloseIcon />}
           >
             ביטול
           </Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
+          <Button
+            variant="contained"
+            color="primary"
             onClick={handleSaveTraining}
             startIcon={<SaveIcon />}
-            disabled={!formData.team || !formData.date || !formData.scenario}
+            disabled={!formData.date || !formData.team || !formData.scenario || !formData.location}
           >
             {selectedTraining ? 'עדכן' : 'הוסף'}
           </Button>
