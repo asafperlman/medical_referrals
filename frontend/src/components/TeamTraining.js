@@ -42,7 +42,6 @@ import {
   Delete as DeleteIcon,
   Refresh as RefreshIcon,
   Close as CloseIcon,
-  Event as EventIcon,
   Save as SaveIcon,
   CalendarToday as CalendarTodayIcon,
   Group as GroupIcon,
@@ -108,7 +107,33 @@ const TeamTraining = ({ showNotification }) => {
       setLoading(false);
     }
   };
-  
+  // בחלק של TeamTraining
+  const handleSaveTeamTraining = async () => {
+    try {
+      if (selectedTraining) {
+        // עדכון תרגול קיים
+        const response = await trainingService.updateTeamTraining(selectedTraining.id, formData);
+        if (response && response.data) {
+          const updatedTrainings = trainings.map((training) =>
+            training.id === selectedTraining.id ? response.data : training
+          );
+          setTrainings(updatedTrainings);
+          showNotification('התרגיל עודכן בהצלחה');
+        }
+      } else {
+        // יצירת תרגול חדש
+        const response = await trainingService.createTeamTraining(formData);
+        if (response && response.data) {
+          setTrainings(prevTrainings => [...prevTrainings, response.data]);
+          showNotification('התרגיל נוסף בהצלחה');
+        }
+      }
+      setOpenForm(false);
+    } catch (error) {
+      console.error('Error saving training:', error);
+      showNotification('שגיאה בשמירת הנתונים', 'error');
+    }
+  };
   const handleAddTraining = () => {
     setSelectedTraining(null);
     setFormData({

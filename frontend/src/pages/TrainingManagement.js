@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import trainingService from '../services/trainingService';
 import axios from 'axios';
 import {
   Box,
@@ -592,24 +593,35 @@ const TeamTraining = ({ showNotification }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // In a real implementation, we would use the API service
-        // const teamsData = await apiService.fetchTeams();
-        // const trainingsData = await apiService.fetchTeamTrainings();
+        // ניסיון להביא נתונים מהשרת
+        let teamsData, trainingsData;
         
-        // For now, using mock data
-        const teamsData = mockDataService.teams;
-        const trainingsData = mockDataService.teamTrainings;
+        try {
+          // בדיקת חיבור לשרת והבאת נתונים
+          teamsData = await trainingService.getTeams();
+          trainingsData = await trainingService.getTeamTrainings();
+          console.log('נתוני צוותים התקבלו מהשרת:', { teamsData, trainingsData });
+        } catch (apiError) {
+          console.error('שגיאה בטעינת נתונים מהשרת:', apiError);
+          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
+          teamsData = mockDataService.teams;
+          trainingsData = mockDataService.teamTrainings;
+          showNotification('לא ניתן להתחבר לשרת. מציג נתונים מקומיים.', 'warning');
+        }
         
+        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
         setTeams(teamsData);
         setTrainings(trainingsData);
-        setLoading(false);
       } catch (err) {
-        console.error('Error fetching training data:', err);
+        console.error('שגיאה חמורה בטעינת נתונים:', err);
+        showNotification('שגיאה בטעינת נתונים', 'error');
+      } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
-  }, []);
+  }, [showNotification]); // הוספת showNotification לתלויות
 
   const handleAddTraining = () => {
     setSelectedTraining(null);
@@ -644,32 +656,41 @@ const TeamTraining = ({ showNotification }) => {
 
   const handleSaveTraining = async () => {
     try {
-      if (selectedTraining) {
-        // In a real implementation, we would save to the API
-        // await apiService.updateTeamTraining(selectedTraining.id, formData);
-        
-        // For now, updating local state
-        const updatedTrainings = trainings.map((training) =>
-          training.id === selectedTraining.id ? { ...training, ...formData } : training
-        );
-        setTrainings(updatedTrainings);
-        showNotification('התרגיל עודכן בהצלחה');
+      setLoading(true); // מציג אינדיקטור טעינה
+      
+      console.log('שולח נתונים לשרת:', formData);
+      
+      // שימוש בשירות ה-API לשליחת הנתונים לשרת
+      const response = await trainingService.createTourniquetTraining(formData);
+      
+      if (response && response.data) {
+        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו מהשרת
+        setTrainings(prevTrainings => [...prevTrainings, response.data]);
+        setOpenForm(false);
+        showNotification('התרגול נשמר בהצלחה');
       } else {
-        // In a real implementation, we would save to the API
-        // const newTraining = await apiService.createTeamTraining(formData);
-        
-        // For now, updating local state
+        throw new Error('תגובה לא תקינה מהשרת');
+      }
+    } catch (error) {
+      console.error('Error saving training:', error);
+      
+      // במקרה של שגיאת רשת, שמור נתונים מקומית
+      if (error.message === 'Network Error') {
         const newTraining = {
           id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
           ...formData,
+          _pending: true // סימון שהנתונים ממתינים לסנכרון עם השרת
         };
         setTrainings([...trainings, newTraining]);
-        showNotification('התרגיל נוסף בהצלחה');
+        setOpenForm(false);
+        showNotification('הנתונים נשמרו מקומית. הם יסונכרנו עם השרת בהתחברות הבאה', 'warning');
+      } else {
+        // שגיאה אחרת
+        const errorMessage = error.response?.data?.detail || error.message || 'אירעה שגיאה לא ידועה';
+        showNotification(`שגיאה בשמירת הנתונים: ${errorMessage}`, 'error');
       }
-      setOpenForm(false);
-    } catch (error) {
-      console.error('Error saving training:', error);
-      showNotification('שגיאה בשמירת הנתונים', 'error');
+    } finally {
+      setLoading(false); // הפסקת אינדיקטור טעינה
     }
   };
 
@@ -1004,10 +1025,11 @@ const TeamTraining = ({ showNotification }) => {
                         </Avatar>
                       </ListItemIcon>
                       <ListItemText 
-                        primary={`צוות ${team}`} 
-                        secondary={`${count} תרגילים`}
-                        primaryTypographyProps={{ fontWeight: 'bold' }}
-                      />
+                      primary={`צוות ${team}`} 
+                      secondary={`${count} תרגילים`}
+                      primaryTypographyProps={{ fontWeight: 'bold', component: 'span' }}
+                      secondaryTypographyProps={{ component: 'span' }}
+                    />
                       {count > 0 && (
                         <Box display="flex" alignItems="center">
                           <Rating 
@@ -1265,27 +1287,39 @@ const TourniquetTraining = ({ showNotification }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // In a real implementation, we would use the API service
-        // const teamsData = await apiService.fetchTeams();
-        // const soldiersData = await apiService.fetchSoldiers();
-        // const trainingsData = await apiService.fetchTourniquetTrainings();
+        // ניסיון להביא נתונים מהשרת
+        let teamsData, soldiersData, trainingsData;
         
-        // For now, using mock data
-        const teamsData = mockDataService.teams;
-        const soldiersData = mockDataService.soldiers;
-        const trainingsData = mockDataService.tourniquetTrainings;
+        try {
+          // בדיקת חיבור לשרת והבאת נתונים
+          teamsData = await trainingService.getTeams();
+          soldiersData = await trainingService.getSoldiers();
+          trainingsData = await trainingService.getTourniquetTrainings();
+          
+          console.log('נתוני תרגול מחצ״ים התקבלו מהשרת:', { teamsData, soldiersData, trainingsData });
+        } catch (apiError) {
+          console.error('שגיאה בטעינת נתונים מהשרת:', apiError);
+          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
+          teamsData = mockDataService.teams;
+          soldiersData = mockDataService.soldiers;
+          trainingsData = mockDataService.tourniquetTrainings;
+          showNotification('לא ניתן להתחבר לשרת. מציג נתונים מקומיים.', 'warning');
+        }
         
+        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
         setTeams(teamsData);
         setSoldiers(soldiersData);
         setTrainings(trainingsData);
-        setLoading(false);
       } catch (err) {
-        console.error('Error fetching training data:', err);
+        console.error('שגיאה חמורה בטעינת נתונים:', err);
+        showNotification('שגיאה בטעינת נתונים', 'error');
+      } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
-  }, []);
+  }, [showNotification]); // הוספת showNotification לתלויות
   
 
   const getSoldierTrainings = (soldierId) => trainings.filter((t) => t.soldier_id === soldierId);
@@ -1322,20 +1356,44 @@ const TourniquetTraining = ({ showNotification }) => {
 
   const handleSaveTraining = async () => {
     try {
-      // In a real implementation, we would save to the API
-      // await apiService.createTourniquetTraining(formData);
+      setLoading(true); // מציג אינדיקטור טעינה
       
-      // For now, updating local state
-      const newTraining = {
-        id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
-        ...formData,
-      };
-      setTrainings([...trainings, newTraining]);
-      setOpenForm(false);
-      showNotification('הנתונים נשמרו בהצלחה');
+      console.log('שולח נתונים לשרת:', formData); // לוג לצורכי דיבוג
+      
+      // שימוש בשירות ה-API לשליחת הנתונים לשרת
+      const response = await trainingService.createTourniquetTraining(formData);
+      
+      // בדיקה אם התקבלה תשובה תקינה מהשרת
+      if (response && response.data) {
+        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו מהשרת
+        setTrainings(prevTrainings => [...prevTrainings, response.data]);
+        setOpenForm(false); // סגירת הטופס
+        showNotification('התרגול נשמר בהצלחה', 'success');
+      } else {
+        throw new Error('תגובה לא תקינה מהשרת');
+      }
     } catch (error) {
-      console.error('Error saving training:', error);
-      showNotification('שגיאה בשמירת הנתונים', 'error');
+      console.error('שגיאה בשמירת התרגול:', error);
+      
+      // הצגת הודעת שגיאה ספציפית יותר למשתמש
+      const errorMessage = error.response?.data?.detail || error.message || 'אירעה שגיאה לא ידועה';
+      showNotification(`שגיאה בשמירת התרגול: ${errorMessage}`, 'error');
+      
+      // כמטפל יחיד במקרה של חיבור שרת לא תקין, ניתן להוסיף טיפול במקרה של שגיאת רשת
+      if (error.message === 'Network Error') {
+        console.log('מנסה לשמור נתונים מקומית בינתיים');
+        // שמירה מקומית זמנית עד שיתאפשר שוב חיבור לשרת
+        const newTraining = {
+          id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
+          ...formData,
+          _pending: true // סימון שהנתונים ממתינים לסנכרון עם השרת
+        };
+        setTrainings([...trainings, newTraining]);
+        setOpenForm(false);
+        showNotification('הנתונים נשמרו מקומית. יסונכרנו עם השרת בהתחברות הבאה.', 'warning');
+      }
+    } finally {
+      setLoading(false); // הפסקת אינדיקטור טעינה בכל מקרה
     }
   };
   
@@ -2909,7 +2967,7 @@ const TourniquetTraining = ({ showNotification }) => {
 // רכיב תרגול חובשים - חדש ומלא
 const MedicsTraining = ({ showNotification }) => {
   const [trainings, setTrainings] = useState([]);
-  const [medics, setMedics] = useState([]);
+  const [medics] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
@@ -2961,27 +3019,39 @@ const MedicsTraining = ({ showNotification }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // In a real implementation, we would use the API service
-        // const teamsData = await apiService.fetchTeams();
-        // const medicsData = await apiService.fetchMedics();
-        // const trainingsData = await apiService.fetchMedicTrainings();
+        // ניסיון להביא נתונים מהשרת
+        let teamsData, medicsData, trainingsData;
         
-        // For now, using mock data
-        const teamsData = mockDataService.teams;
-        const medicsData = mockDataService.medics;
-        const trainingsData = mockDataService.medicTrainings;
+        try {
+          // בדיקת חיבור לשרת והבאת נתונים
+          teamsData = await trainingService.getTeams();
+          medicsData = await trainingService.getMedics();
+          trainingsData = await trainingService.getMedicTrainings();
+          
+          console.log('נתוני תרגולי חובשים התקבלו מהשרת:', { teamsData, medicsData, trainingsData });
+        } catch (apiError) {
+          console.error('שגיאה בטעינת נתונים מהשרת:', apiError);
+          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
+          teamsData = mockDataService.teams;
+          medicsData = mockDataService.medics;
+          trainingsData = mockDataService.medicTrainings;
+          showNotification('לא ניתן להתחבר לשרת. מציג נתונים מקומיים.', 'warning');
+        }
         
+        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
         setTeams(teamsData);
-        setMedics(medicsData);
+        setSoldiers(medicsData); // במקום setSoldiers
         setTrainings(trainingsData);
-        setLoading(false);
       } catch (err) {
-        console.error('Error fetching medic data:', err);
+        console.error('שגיאה חמורה בטעינת נתונים:', err);
+        showNotification('שגיאה בטעינת נתונים', 'error');
+      } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
-  }, []);
+  }, [showNotification]); // הוספת showNotification לתלויות
 
   const getMedicTrainings = (medicId) => trainings.filter((t) => t.medic_id === medicId);
 
@@ -4583,21 +4653,32 @@ const TrainingAnalysis = ({ showNotification }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // In a real implementation, we would use the API service
-        // const stats = await apiService.fetchTrainingStats();
+        // ניסיון להביא נתונים מהשרת
+        let stats;
         
-        // For now, using mock data
-        const stats = mockDataService.trainingStats;
+        try {
+          // בדיקת חיבור לשרת והבאת נתונים
+          stats = await trainingService.getTrainingStats(selectedPeriod, selectedTeam);
+          console.log('נתוני ניתוח התקבלו מהשרת:', stats);
+        } catch (apiError) {
+          console.error('שגיאה בטעינת נתוני ניתוח מהשרת:', apiError);
+          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
+          stats = mockDataService.trainingStats;
+          showNotification('לא ניתן להתחבר לשרת. מציג נתוני ניתוח מקומיים.', 'warning');
+        }
         
+        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
         setStatsData(stats);
-        setLoading(false);
       } catch (err) {
-        console.error('Error fetching training stats:', err);
+        console.error('שגיאה חמורה בטעינת נתוני ניתוח:', err);
+        showNotification('שגיאה בטעינת נתוני ניתוח', 'error');
+      } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
-  }, []);
+  }, [selectedPeriod, selectedTeam, showNotification]); // הוספת תלויות רלוונטיות
 
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
