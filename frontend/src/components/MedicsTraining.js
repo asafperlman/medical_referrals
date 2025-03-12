@@ -1,5 +1,5 @@
-// Fixed MedicsTraining component
 import React, { useState, useEffect } from 'react';
+import * as trainingService from '../services/trainingService';
 import {
   Box,
   Paper,
@@ -118,30 +118,31 @@ const MedicsTraining = ({ showNotification }) => {
   });
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // In a real implementation, we would use the API service
-        // const teamsData = await apiService.fetchTeams();
-        // const medicsData = await apiService.fetchMedics();
-        // const trainingsData = await apiService.fetchMedicTrainings();
-        
-        // For now, using mock data
-        const teamsData = mockDataService.teams;
-        const medicsData = mockDataService.medics;
-        const trainingsData = mockDataService.medicTrainings;
-        
-        setTeams(teamsData);
-        setMedics(medicsData);
-        setTrainings(trainingsData);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching medic data:', err);
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch teams from API
+      const teamsData = await trainingService.getTeams();
+      
+      // Fetch medics from API
+      const medicsData = await trainingService.getMedics();
+      
+      // Fetch medic trainings from API
+      const trainingsData = await trainingService.getMedicTrainings();
+      
+      setTeams(teamsData);
+      setMedics(medicsData);
+      setTrainings(trainingsData);
+    } catch (err) {
+      console.error('Error fetching medic data:', err);
+      trainingService.handleApiError(err, showNotification);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getMedicTrainings = (medicId) => trainings.filter((t) => t.medic_id === medicId);
 
@@ -203,20 +204,20 @@ const MedicsTraining = ({ showNotification }) => {
 
   const handleSaveTraining = async () => {
     try {
-      // In a real implementation, we would save to the API
-      // await apiService.createMedicTraining(formData);
+      setLoading(true);
+      // Save to API
+      await trainingService.createMedicTraining(formData);
       
-      // For now, updating local state
-      const newTraining = {
-        id: Math.max(0, ...trainings.map((t) => t.id || 0)) + 1,
-        ...formData,
-      };
-      setTrainings([...trainings, newTraining]);
+      // Refresh data from API
+      await fetchData();
+      
       setOpenForm(false);
-      showNotification('נתוני התרגול נשמרו בהצלחה');
+      showNotification('נתוני התרגול נשמרו בהצלחה', 'success');
     } catch (error) {
       console.error('Error saving training:', error);
-      showNotification('שגיאה בשמירת הנתונים', 'error');
+      trainingService.handleApiError(error, showNotification);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -305,9 +306,9 @@ const MedicsTraining = ({ showNotification }) => {
   // שמירת נתוני האימון הקבוצתי
   const handleSaveSession = async () => {
     try {
+      setLoading(true);
       // יצירת רשומות אימון עבור כל חובש שהשתתף
-      const newTrainings = sessionFormData.participants.map(medicId => ({
-        id: Math.max(0, ...trainings.map(t => t.id || 0)) + 1 + sessionFormData.participants.indexOf(medicId),
+      const trainingData = sessionFormData.participants.map(medicId => ({
         medic_id: medicId,
         training_date: sessionFormData.date,
         training_type: sessionFormData.training_type,
@@ -317,23 +318,41 @@ const MedicsTraining = ({ showNotification }) => {
         recommendations: ''
       }));
       
-      // In a real implementation, we would save to the API
-      // await Promise.all(newTrainings.map(training => apiService.createMedicTraining(training)));
+      // Save bulk training data to API
+      await trainingService.createBulkMedicTrainings(trainingData);
       
-      // For now, updating local state
-      setTrainings([...trainings, ...newTrainings]);
+      // Refresh data from API
+      await fetchData();
+      
       setOpenSessionForm(false);
       showNotification(`נשמרו נתוני אימון עבור ${sessionFormData.participants.length} חובשים`, 'success');
     } catch (error) {
       console.error('Error saving session:', error);
-      showNotification('שגיאה בשמירת נתוני האימון', 'error');
+      trainingService.handleApiError(error, showNotification);
+    } finally {
+      setLoading(false);
     }
   };
 
   // פתיחת פרטי חובש
-  const handleOpenMedicDetails = (medic) => {
-    setSelectedMedic(medic);
-    setOpenMedicDetails(true);
+  const handleOpenMedicDetails = async (medic) => {
+    try {
+      setLoading(true);
+      // If available, fetch detailed stats for the medic
+      try {
+        const medicStats = await trainingService.getMedicStats(medic.id);
+        setSelectedMedic({...medic, stats: medicStats});
+      } catch (statsError) {
+        // If stats endpoint unavailable, use the basic data
+        setSelectedMedic(medic);
+      }
+      setOpenMedicDetails(true);
+    } catch (error) {
+      console.error('Error fetching medic details:', error);
+      trainingService.handleApiError(error, showNotification);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // חישוב ממוצע ביצוע לחובש
@@ -350,7 +369,7 @@ const MedicsTraining = ({ showNotification }) => {
     const matchesTeam = filterTeam ? medic.team === filterTeam : true;
     const matchesSearch = searchQuery === '' || 
       medic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      medic.role.toLowerCase().includes(searchQuery.toLowerCase());
+      (medic.role && medic.role.toLowerCase().includes(searchQuery.toLowerCase()));
     
     return matchesTeam && matchesSearch;
   });
@@ -1564,19 +1583,20 @@ const MedicsTraining = ({ showNotification }) => {
                           <Typography variant="body2" color="text.secondary">ממוצע ביצוע:</Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <Rating 
-                              value={calculateAveragePerformance(selectedMedic.id) > 0 ? parseFloat(calculateAveragePerformance(selectedMedic.id)) : 0} 
+                              value={selectedMedic.stats?.average_rating || calculateAveragePerformance(selectedMedic.id) > 0 ? 
+                                    parseFloat(selectedMedic.stats?.average_rating || calculateAveragePerformance(selectedMedic.id)) : 0} 
                               readOnly 
                               precision={0.5}
                               size="small"
                               sx={{
                                 '& .MuiRating-iconFilled': {
-                                  color: calculateAveragePerformance(selectedMedic.id) >= 4 ? 'success.main' : 
-                                         calculateAveragePerformance(selectedMedic.id) >= 3 ? 'warning.main' : 'error.main',
+                                  color: (selectedMedic.stats?.average_rating || calculateAveragePerformance(selectedMedic.id)) >= 4 ? 'success.main' : 
+                                         (selectedMedic.stats?.average_rating || calculateAveragePerformance(selectedMedic.id)) >= 3 ? 'warning.main' : 'error.main',
                                 }
                               }}
                             />
                             <Typography variant="body2" sx={{ ml: 1 }}>
-                              ({calculateAveragePerformance(selectedMedic.id)})
+                              ({selectedMedic.stats?.average_rating || calculateAveragePerformance(selectedMedic.id)})
                             </Typography>
                           </Box>
                         </Box>
@@ -1584,7 +1604,7 @@ const MedicsTraining = ({ showNotification }) => {
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="body2" color="text.secondary">אימונים סך הכל:</Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {getMedicTrainings(selectedMedic.id).length} אימונים
+                            {selectedMedic.stats?.total_trainings || getMedicTrainings(selectedMedic.id).length} אימונים
                           </Typography>
                         </Box>
                       </Box>
@@ -1625,7 +1645,7 @@ const MedicsTraining = ({ showNotification }) => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {getMedicTrainings(selectedMedic.id)
+                          {(selectedMedic.stats?.trainings || getMedicTrainings(selectedMedic.id))
                             .sort((a, b) => new Date(b.training_date) - new Date(a.training_date))
                             .map((training) => (
                               <TableRow
@@ -1666,7 +1686,8 @@ const MedicsTraining = ({ showNotification }) => {
                                 </TableCell>
                               </TableRow>
                             ))}
-                          {getMedicTrainings(selectedMedic.id).length === 0 && (
+                          {((!selectedMedic.stats?.trainings || selectedMedic.stats?.trainings.length === 0) &&
+                            getMedicTrainings(selectedMedic.id).length === 0) && (
                             <TableRow>
                               <TableCell colSpan={5} align="center">
                                 <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
@@ -1695,26 +1716,39 @@ const MedicsTraining = ({ showNotification }) => {
                   </Paper>
                   
                   {/* סטטיסטיקת סוגי תרגולים */}
-                  {getMedicTrainings(selectedMedic.id).length > 0 && (
+                  {(selectedMedic.stats?.trainings || getMedicTrainings(selectedMedic.id).length > 0) && (
                     <Paper sx={{ borderRadius: 2, p: 2 }}>
                       <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
                         סטטיסטיקת תרגולים לפי סוג
                       </Typography>
                       <Box sx={{ mt: 2 }}>
+                        {/* Medic training types statistics */}
                         {trainingTypes
-                          .filter(type => getMedicTrainings(selectedMedic.id).some(t => t.training_type === type))
+                          .filter(type => getMedicTrainings(selectedMedic.id).some(t => t.training_type === type) ||
+                                        (selectedMedic.stats?.trainings_by_type && selectedMedic.stats.trainings_by_type[type]))
                           .map(type => {
+                            // Get stats from API response or calculate from local data
+                            const typeStats = selectedMedic.stats?.trainings_by_type?.[type];
                             const typeTrainings = getMedicTrainings(selectedMedic.id).filter(t => t.training_type === type);
-                            const avgRating = typeTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / typeTrainings.length;
-                            const lastTraining = typeTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0];
+                            
+                            const count = typeStats?.count || typeTrainings.length;
+                            const avgRating = typeStats?.average_rating || 
+                              (typeTrainings.length > 0 ? 
+                                typeTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / typeTrainings.length : 0);
+                                
+                            const lastTraining = typeStats?.last_training || 
+                              (typeTrainings.length > 0 ? 
+                                typeTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0] : null);
                             
                             return (
                               <Box key={type} sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <Box>
                                   <Typography variant="body2" fontWeight="medium">{type}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    תרגול אחרון: {formatDate(lastTraining.training_date)}
-                                  </Typography>
+                                  {lastTraining && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      תרגול אחרון: {formatDate(lastTraining.training_date || lastTraining)}
+                                    </Typography>
+                                  )}
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                   <Box sx={{ mr: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1722,7 +1756,7 @@ const MedicsTraining = ({ showNotification }) => {
                                       תרגולים
                                     </Typography>
                                     <Typography variant="body2" fontWeight="bold">
-                                      {typeTrainings.length}
+                                      {count}
                                     </Typography>
                                   </Box>
                                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1770,33 +1804,9 @@ const MedicsTraining = ({ showNotification }) => {
 
 // Helper function for formatting dates
 const formatDate = (dateString) => {
+  if (!dateString) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-};
-
-// Mock data service for development
-const mockDataService = {
-  teams: ['אתק', 'רתק', 'חוד', 'פלס"ר'],
-  medics: [
-    { id: 1, name: 'אלון כהן', team: 'אתק', role: 'חובש קרבי', experience: 'בכיר' },
-    { id: 2, name: 'מיכל לוי', team: 'רתק', role: 'חובשת מתקדמת', experience: 'מתקדם' },
-    { id: 3, name: 'עומר דוד', team: 'חוד', role: 'חובש צוות', experience: 'מתחיל' },
-    { id: 4, name: 'דניאל אברהם', team: 'אתק', role: 'חובש קרבי', experience: 'מתקדם' },
-    { id: 5, name: 'שירה גולן', team: 'פלס"ר', role: 'חובשת בכירה', experience: 'בכיר' },
-    { id: 6, name: 'יואב נחום', team: 'רתק', role: 'חובש צוות', experience: 'מתחיל' },
-    { id: 7, name: 'נועה ברק', team: 'חוד', role: 'חובשת מתקדמת', experience: 'מתקדם' },
-    { id: 8, name: 'איתי שמש', team: 'פלס"ר', role: 'חובש קרבי', experience: 'מתחיל' }
-  ],
-  medicTrainings: [
-    { id: 1, medic_id: 1, training_date: '2024-03-01', training_type: 'החייאה', performance_rating: 4, attendance: true, notes: 'ביצוע מצוין' },
-    { id: 2, medic_id: 2, training_date: '2024-03-02', training_type: 'טיפול בפציעות ראש', performance_rating: 3, attendance: true, notes: '' },
-    { id: 3, medic_id: 1, training_date: '2024-02-15', training_type: 'החדרת נתיב אוויר', performance_rating: 5, attendance: true, notes: 'שליטה מלאה בנושא' },
-    { id: 4, medic_id: 3, training_date: '2024-02-28', training_type: 'עצירת דימומים', performance_rating: 2, attendance: true, notes: 'זקוק לתרגול נוסף' },
-    { id: 5, medic_id: 5, training_date: '2024-03-05', training_type: 'טיפול בפגיעות חזה', performance_rating: 4, attendance: true, notes: '' },
-    { id: 6, medic_id: 4, training_date: '2024-02-20', training_type: 'הנחת עירוי', performance_rating: 3, attendance: false, notes: 'נעדר בחלק מהתרגול' },
-    { id: 7, medic_id: 2, training_date: '2024-01-30', training_type: 'החייאה', performance_rating: 4, attendance: true, notes: 'שיפור משמעותי' },
-    { id: 8, medic_id: 7, training_date: '2024-03-10', training_type: 'טיפול בהלם', performance_rating: 3, attendance: true, notes: '' }
-  ]
 };
 
 export default MedicsTraining;

@@ -1,4 +1,25 @@
-import api from './api';
+import axios from 'axios';
+
+// Configure base API instance
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Add authorization interceptor
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 // Base URL for training API
 const BASE_URL = '/api/trainings';
@@ -161,45 +182,65 @@ export const getMedicsByTeam = async (team) => {
   return response.data;
 };
 
-// Medic Trainings - Using medic-trainings instead of medic as per required backend change
+// Medic Trainings
 export const getMedicTrainings = async (filters = {}) => {
-  const response = await api.get(`${BASE_URL}/medic-trainings/`, { params: filters });
+  const response = await api.get(`${BASE_URL}/medic-training/`, { params: filters });
   return response.data;
 };
 
 export const getMedicTraining = async (id) => {
-  const response = await api.get(`${BASE_URL}/medic-trainings/${id}/`);
+  const response = await api.get(`${BASE_URL}/medic-training/${id}/`);
   return response.data;
 };
 
 export const createMedicTraining = async (data) => {
-  const response = await api.post(`${BASE_URL}/medic-trainings/`, data);
+  const response = await api.post(`${BASE_URL}/medic-training/`, data);
   return response.data;
 };
 
 export const updateMedicTraining = async (id, data) => {
-  const response = await api.put(`${BASE_URL}/medic-trainings/${id}/`, data);
+  const response = await api.put(`${BASE_URL}/medic-training/${id}/`, data);
   return response.data;
 };
 
 export const deleteMedicTraining = async (id) => {
-  return await api.delete(`${BASE_URL}/medic-trainings/${id}/`);
+  return await api.delete(`${BASE_URL}/medic-training/${id}/`);
 };
 
 export const createBulkMedicTrainings = async (data) => {
-  const response = await api.post(`${BASE_URL}/medic-trainings/bulk_create/`, data);
+  const response = await api.post(`${BASE_URL}/medic-training/bulk_create/`, data);
   return response.data;
 };
 
 export const getCurrentMonthMedicTrainings = async (team) => {
   const params = team ? { team } : {};
-  const response = await api.get(`${BASE_URL}/medic-trainings/current_month/`, { params });
+  const response = await api.get(`${BASE_URL}/medic-training/current_month/`, { params });
   return response.data;
 };
 
 export const getMedicTrainingsByType = async (type) => {
-  const response = await api.get(`${BASE_URL}/medic-trainings/by_type/`, { params: { type } });
+  const response = await api.get(`${BASE_URL}/medic-training/by_type/`, { params: { type } });
   return response.data;
+};
+
+// Teams - This isn't directly provided in the API documentation but is needed
+export const getTeams = async () => {
+  // Try to get teams from a dedicated endpoint first
+  try {
+    const response = await api.get(`${BASE_URL}/teams/`);
+    return response.data;
+  } catch (error) {
+    // If dedicated endpoint fails, try to get unique teams from soldiers
+    try {
+      const soldiers = await getSoldiers();
+      const uniqueTeams = [...new Set(soldiers.map(soldier => soldier.team))];
+      return uniqueTeams.filter(team => team); // Filter out undefined/null/empty
+    } catch (innerError) {
+      // If all else fails, return default teams
+      console.warn('Teams endpoint not available, using fallback teams');
+      return ['חוד', 'אתק', 'רתק', 'מפלג'];
+    }
+  }
 };
 
 // Overall Training Stats
@@ -210,20 +251,6 @@ export const getTrainingStats = async (period = 'all', team = null) => {
   return response.data;
 };
 
-// Teams - This isn't directly provided in the API documentation but is needed
-export const getTeams = async () => {
-  // This is a helper function as there's no direct endpoint for teams
-  // We can extract teams from the soldier list or use a fallback
-  try {
-    const response = await api.get(`${BASE_URL}/teams/`);
-    return response.data;
-  } catch (error) {
-    // If there's no teams endpoint, we can fall back to a common set of teams
-    console.warn('Teams endpoint not available, using fallback teams');
-    return ['חוד', 'אתק', 'רתק', 'מפלג'];
-  }
-};
-
 // Error handling helper
 export const handleApiError = (error, showNotification) => {
   if (error.response) {
@@ -232,6 +259,21 @@ export const handleApiError = (error, showNotification) => {
     
     if (status === 400) {
       message = 'בקשה שגויה. אנא בדוק את הנתונים שהוזנו';
+      // If detailed error information is available
+      if (error.response.data && typeof error.response.data === 'object') {
+        const detailErrors = Object.entries(error.response.data)
+          .map(([field, errors]) => {
+            if (Array.isArray(errors)) {
+              return `${field}: ${errors.join(', ')}`;
+            }
+            return `${field}: ${errors}`;
+          })
+          .join('; ');
+        
+        if (detailErrors) {
+          message = detailErrors;
+        }
+      }
     } else if (status === 401) {
       message = 'אינך מורשה. יש צורך בהתחברות מחדש';
     } else if (status === 403) {
@@ -257,10 +299,11 @@ export const handleApiError = (error, showNotification) => {
     }
   }
   
-  // Rethrow the error for further handling if needed
-  throw error;
+  console.error('API Error:', error);
+  return error;
 };
 
+// Export all functions as a default object for easier importing
 export default {
   getTeamTrainings,
   getTeamTraining,
