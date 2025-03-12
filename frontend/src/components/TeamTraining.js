@@ -53,7 +53,7 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material';
 
-import apiService from '../services/apiService';
+import * as trainingService from '../services/trainingService';
 
 // Helper function to format date
 const formatDate = (dateString) => {
@@ -87,15 +87,23 @@ const TeamTraining = ({ showNotification }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // שימוש בשירות API אמיתי במקום נתונים מדומים
-      const teamsData = await apiService.fetchTeams();
-      const trainingsData = await apiService.fetchTeamTrainings();
+      // Fetch teams - first try the API, then fall back to default teams if needed
+      let teamsData;
+      try {
+        teamsData = await trainingService.getTeams();
+      } catch (error) {
+        console.warn("Failed to fetch teams, using default teams");
+        teamsData = ['חוד', 'אתק', 'רתק', 'מפלג'];
+      }
+      
+      // Fetch team trainings from the API
+      const trainingsData = await trainingService.getTeamTrainings();
       
       setTeams(teamsData);
       setTrainings(trainingsData);
     } catch (error) {
       console.error('Error fetching training data:', error);
-      apiService.handleApiError(error, showNotification);
+      trainingService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
@@ -121,7 +129,7 @@ const TeamTraining = ({ showNotification }) => {
       team: training.team,
       scenario: training.scenario,
       location: training.location,
-      notes: training.notes,
+      notes: training.notes || '',
       performance_rating: training.performance_rating,
     });
     setOpenForm(true);
@@ -136,27 +144,27 @@ const TeamTraining = ({ showNotification }) => {
     setLoading(true);
     try {
       if (selectedTraining) {
-        // עדכון תרגול קיים
-        const updatedTraining = await apiService.updateTeamTraining(selectedTraining.id, formData);
+        // Update existing training
+        const updatedTraining = await trainingService.updateTeamTraining(selectedTraining.id, formData);
         
-        // עדכון ה-state המקומי לאחר קבלת אישור מהשרת
+        // Update local state after successful API call
         const updatedTrainings = trainings.map((training) =>
           training.id === selectedTraining.id ? updatedTraining : training
         );
         setTrainings(updatedTrainings);
-        showNotification('התרגיל עודכן בהצלחה');
+        showNotification('התרגיל עודכן בהצלחה', 'success');
       } else {
-        // יצירת תרגול חדש
-        const newTraining = await apiService.createTeamTraining(formData);
+        // Create new training
+        const newTraining = await trainingService.createTeamTraining(formData);
         
-        // הוספה ל-state המקומי לאחר קבלת אישור מהשרת
+        // Update local state after successful API call
         setTrainings([...trainings, newTraining]);
-        showNotification('התרגיל נוסף בהצלחה');
+        showNotification('התרגיל נוסף בהצלחה', 'success');
       }
       setOpenForm(false);
     } catch (error) {
       console.error('Error saving training:', error);
-      apiService.handleApiError(error, showNotification);
+      trainingService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
@@ -165,22 +173,21 @@ const TeamTraining = ({ showNotification }) => {
   const handleDeleteTraining = async (id) => {
     try {
       setLoading(true);
-      // מחיקה דרך ה-API
-      await apiService.deleteTeamTraining(id);
+      // Delete training via API
+      await trainingService.deleteTeamTraining(id);
       
-      // עדכון ה-state המקומי לאחר מחיקה מוצלחת
+      // Update local state after successful API call
       const updatedTrainings = trainings.filter((training) => training.id !== id);
       setTrainings(updatedTrainings);
       showNotification('התרגיל נמחק בהצלחה', 'info');
     } catch (error) {
       console.error('Error deleting training:', error);
-      apiService.handleApiError(error, showNotification);
+      trainingService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
   };
   
-
   const handleRefresh = async () => {
     await fetchData();
     showNotification('הנתונים עודכנו בהצלחה', 'success');
@@ -611,16 +618,19 @@ const TeamTraining = ({ showNotification }) => {
                     </InputAdornment>
                   ),
                 }}
+                error={!formData.date}
+                helperText={!formData.date ? "שדה חובה" : ""}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required>
-                <InputLabel>צוות</InputLabel>
+              <FormControl fullWidth required error={!formData.team}>
+                <InputLabel id="team-label">צוות</InputLabel>
                 <Select 
                   name="team" 
                   value={formData.team} 
                   onChange={handleFormChange} 
                   label="צוות"
+                  labelId="team-label"
                   startAdornment={
                     <InputAdornment position="start">
                       <GroupIcon fontSize="small" />
@@ -634,6 +644,7 @@ const TeamTraining = ({ showNotification }) => {
                     </MenuItem>
                   ))}
                 </Select>
+                {!formData.team && <Typography variant="caption" color="error">שדה חובה</Typography>}
               </FormControl>
             </Grid>
             <Grid item xs={12}>
@@ -651,6 +662,8 @@ const TeamTraining = ({ showNotification }) => {
                     </InputAdornment>
                   ),
                 }}
+                error={!formData.scenario}
+                helperText={!formData.scenario ? "שדה חובה" : ""}
               />
             </Grid>
             <Grid item xs={12}>
