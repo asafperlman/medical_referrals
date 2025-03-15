@@ -114,9 +114,18 @@ class ReferralSerializer(serializers.ModelSerializer):
         return referral
 
     def update(self, instance, validated_data):
+        """
+        עדכון הפניה קיימת עם טיפול טוב יותר בשדות
+        """
         user = self.context['request'].user
         validated_data['last_updated_by'] = user
-        return super().update(instance, validated_data)
+        
+        # עדכן את כל השדות שהועברו בבקשה
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance
         
     def validate(self, data):
         """
@@ -124,9 +133,21 @@ class ReferralSerializer(serializers.ModelSerializer):
         """
         # בודק אם זו עריכה (יש instance) או יצירה חדשה
         instance = getattr(self, 'instance', None)
-        personal_id = data.get('personal_id')
-        referral_type = data.get('referral_type')
-        referral_details = data.get('referral_details')
+        
+        # אם זו עריכה, משתמשים בערכים מהמופע הקיים אם לא סופקו בנתונים החדשים
+        if instance:
+            personal_id = data.get('personal_id', instance.personal_id)
+            referral_type = data.get('referral_type', instance.referral_type)
+            referral_details = data.get('referral_details', instance.referral_details)
+        else:
+            # אם זו יצירה חדשה, נשתמש רק בנתונים שסופקו
+            personal_id = data.get('personal_id')
+            referral_type = data.get('referral_type')
+            referral_details = data.get('referral_details')
+        
+        # אם חסרים נתונים חיוניים לבדיקה, נחזיר את הנתונים כמו שהם
+        if not all([personal_id, referral_type, referral_details]):
+            return data
         
         # בודק אם כבר קיימת הפניה עם אותם פרטים
         existing_referral = Referral.objects.filter(

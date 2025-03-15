@@ -53,7 +53,6 @@ import {
   Stack,
 } from '@mui/material';
 
-// Icons
 import {
   Add as AddIcon,
   Search as SearchIcon,
@@ -84,7 +83,6 @@ import { useAuth } from '../context/AuthContext';
 import ReferralForm from '../components/ReferralForm';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
-// Constants
 const VIEWS = {
   LIST: 'list',
   BY_TYPE: 'by_type',
@@ -94,24 +92,24 @@ const VIEWS = {
 };
 
 const STATUS_COLORS = {
-  appointment_scheduled: '#9c27b0', // purple
-  requires_coordination: '#2196f3', // blue
-  requires_soldier_coordination: '#ff9800', // orange
-  waiting_for_medical_date: '#ffc107', // amber
-  completed: '#4caf50', // green
-  cancelled: '#f44336', // red
-  waiting_for_budget_approval: '#e91e63', // pink
-  waiting_for_doctor_referral: '#795548', // brown
-  no_show: '#607d8b', // blue-grey
+  appointment_scheduled: '#9c27b0',
+  requires_coordination: '#2196f3',
+  requires_soldier_coordination: '#ff9800',
+  waiting_for_medical_date: '#ffc107',
+  completed: '#4caf50',
+  cancelled: '#f44336',
+  waiting_for_budget_approval: '#e91e63',
+  waiting_for_doctor_referral: '#795548',
+  no_show: '#607d8b',
 };
 
 const PRIORITY_COLORS = {
-  highest: '#d32f2f', // dark red
-  urgent: '#f44336', // red
-  high: '#ff9800', // orange
-  medium: '#2196f3', // blue
-  low: '#4caf50', // green
-  minimal: '#9e9e9e', // grey
+  highest: '#d32f2f',
+  urgent: '#f44336',
+  high: '#ff9800',
+  medium: '#2196f3',
+  low: '#4caf50',
+  minimal: '#9e9e9e',
 };
 
 const REFERRAL_TYPE_ICONS = {
@@ -142,12 +140,51 @@ const ReferralsPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  // States for views and UI
+  // Memoized options arrays to prevent re-creation on every render
+  const statusOptions = useMemo(() => [
+    { value: 'appointment_scheduled', label: 'נקבע תור' },
+    { value: 'requires_coordination', label: 'דרוש תיאום' },
+    { value: 'requires_soldier_coordination', label: 'דרוש תיאום עם חייל' },
+    { value: 'waiting_for_medical_date', label: 'ממתין לתאריך' },
+    { value: 'completed', label: 'הושלם' },
+    { value: 'cancelled', label: 'בוטל' },
+    { value: 'waiting_for_budget_approval', label: 'ממתין לאישור תקציבי' },
+    { value: 'waiting_for_doctor_referral', label: 'ממתין להפניה מרופא' },
+    { value: 'no_show', label: 'לא הגיע לתור' },
+  ], []);
+
+  const priorityOptions = useMemo(() => [
+    { value: 'highest', label: 'דחוף ביותר' },
+    { value: 'urgent', label: 'דחוף' },
+    { value: 'high', label: 'גבוה' },
+    { value: 'medium', label: 'בינוני' },
+    { value: 'low', label: 'נמוך' },
+    { value: 'minimal', label: 'זניח' },
+  ], []);
+
+  const referralTypeOptions = useMemo(() => [
+    { value: 'specialist', label: 'רופא מומחה' },
+    { value: 'imaging', label: 'בדיקות דימות' },
+    { value: 'lab', label: 'בדיקות מעבדה' },
+    { value: 'therapy', label: 'טיפול' },
+    { value: 'procedure', label: 'פרוצדורה' },
+    { value: 'surgery', label: 'ניתוח' },
+    { value: 'consultation', label: 'ייעוץ' },
+    { value: 'dental', label: 'טיפול שיניים' },
+    { value: 'other', label: 'אחר' },
+  ], []);
+
+  const teamOptions = useMemo(() => [
+    { value: 'חוד', label: 'חוד' },
+    { value: 'אתק', label: 'אתק' },
+    { value: 'רתק', label: 'רתק' },
+    { value: 'מפלג', label: 'מפלג' },
+  ], []);
+
+  // States
   const [currentView, setCurrentView] = useState(VIEWS.LIST);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-
-  // States for referrals data
   const [referrals, setReferrals] = useState([]);
   const [referralsByType, setReferralsByType] = useState({});
   const [referralsByTeam, setReferralsByTeam] = useState({});
@@ -159,73 +196,24 @@ const ReferralsPage = () => {
     byType: {},
     byTeam: {},
   });
-
-  // States for loading and errors
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [initialLoading, setInitialLoading] = useState(true);
-
-  // States for pagination and sorting
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState('updated_at');
   const [sortDirection, setSortDirection] = useState('desc');
-
-  // States for filtering
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState(initialFilters);
   const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [availableReferralDetails, setAvailableReferralDetails] = useState([]);
   const [filterAnchorEl, setFilterAnchorEl] = useState(null);
-
-  // States for referral form
   const [openForm, setOpenForm] = useState(false);
   const [editingReferral, setEditingReferral] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingReferralId, setDeletingReferralId] = useState(null);
-
-  // Metadata options
-  const statusOptions = [
-    { value: 'appointment_scheduled', label: 'נקבע תור' },
-    { value: 'requires_coordination', label: 'דרוש תיאום' },
-    { value: 'requires_soldier_coordination', label: 'דרוש תיאום עם חייל' },
-    { value: 'waiting_for_medical_date', label: 'ממתין לתאריך' },
-    { value: 'completed', label: 'הושלם' },
-    { value: 'cancelled', label: 'בוטל' },
-    { value: 'waiting_for_budget_approval', label: 'ממתין לאישור תקציבי' },
-    { value: 'waiting_for_doctor_referral', label: 'ממתין להפניה מרופא' },
-    { value: 'no_show', label: 'לא הגיע לתור' },
-  ];
-
-  const priorityOptions = [
-    { value: 'highest', label: 'דחוף ביותר' },
-    { value: 'urgent', label: 'דחוף' },
-    { value: 'high', label: 'גבוה' },
-    { value: 'medium', label: 'בינוני' },
-    { value: 'low', label: 'נמוך' },
-    { value: 'minimal', label: 'זניח' },
-  ];
-
-  const referralTypeOptions = [
-    { value: 'specialist', label: 'רופא מומחה' },
-    { value: 'imaging', label: 'בדיקות דימות' },
-    { value: 'lab', label: 'בדיקות מעבדה' },
-    { value: 'therapy', label: 'טיפול' },
-    { value: 'procedure', label: 'פרוצדורה' },
-    { value: 'surgery', label: 'ניתוח' },
-    { value: 'consultation', label: 'ייעוץ' },
-    { value: 'dental', label: 'טיפול שיניים' },
-    { value: 'other', label: 'אחר' },
-  ];
-
-  const teamOptions = [
-    { value: 'חוד', label: 'חוד' },
-    { value: 'אתק', label: 'אתק' },
-    { value: 'רתק', label: 'רתק' },
-    { value: 'מפלג', label: 'מפלג' },
-  ];
 
   // Helper to get sort order string for API
   const getSortOrderString = useCallback(() => {
@@ -235,7 +223,6 @@ const ReferralsPage = () => {
 
   // Function to calculate statistics
   const calculateStats = useCallback((refs, total) => {
-    // Count by status
     const byStatus = {};
     statusOptions.forEach(option => {
       byStatus[option.value] = 0;
@@ -244,7 +231,6 @@ const ReferralsPage = () => {
       if (ref.status) byStatus[ref.status] = (byStatus[ref.status] || 0) + 1;
     });
 
-    // Count by priority
     const byPriority = {};
     priorityOptions.forEach(option => {
       byPriority[option.value] = 0;
@@ -253,7 +239,6 @@ const ReferralsPage = () => {
       if (ref.priority) byPriority[ref.priority] = (byPriority[ref.priority] || 0) + 1;
     });
 
-    // Count by type
     const byType = {};
     referralTypeOptions.forEach(option => {
       byType[option.value] = 0;
@@ -262,7 +247,6 @@ const ReferralsPage = () => {
       if (ref.referral_type) byType[ref.referral_type] = (byType[ref.referral_type] || 0) + 1;
     });
 
-    // Count by team
     const byTeam = {};
     teamOptions.forEach(option => {
       byTeam[option.value] = 0;
@@ -282,7 +266,6 @@ const ReferralsPage = () => {
 
   // Function to organize referrals by different categories
   const organizeReferrals = useCallback((refs) => {
-    // Group by referral type
     const byType = {};
     refs.forEach(ref => {
       const type = ref.referral_type || 'other';
@@ -291,7 +274,6 @@ const ReferralsPage = () => {
     });
     setReferralsByType(byType);
 
-    // Group by team
     const byTeam = {};
     refs.forEach(ref => {
       const team = ref.team || 'unknown';
@@ -300,7 +282,6 @@ const ReferralsPage = () => {
     });
     setReferralsByTeam(byTeam);
 
-    // Group by status
     const byStatus = {};
     refs.forEach(ref => {
       const status = ref.status || 'unknown';
@@ -317,7 +298,6 @@ const ReferralsPage = () => {
       if (err.response.status === 500) {
         setError('אירעה שגיאה בשרת. ייתכן שיש מיגרציות שלא יושמו או בעיה בעיבוד הפרמטרים. נא לפנות למנהל המערכת.');
       } else if (err.response.status === 400) {
-        // Bad request - likely an issue with the filtering params
         setError('שגיאה בפרמטרים של הבקשה. ייתכן שיש בעיה באחד מהפרמטרים של הסינון. נסה לנקות את הסינון ולנסות שוב.');
         console.warn('Bad request details:', err.response.data);
       } else {
@@ -336,33 +316,24 @@ const ReferralsPage = () => {
     setError(null);
     try {
       const params = {
-        page: page + 1, // DRF starts from page 1
+        page: page + 1,
         page_size: rowsPerPage,
         search: appliedSearchQuery,
         ordering: getSortOrderString(),
       };
 
-      // Apply filters
       if (appliedFilters.status.length > 0)
         params.status__in = appliedFilters.status.join(',');
       if (appliedFilters.priority.length > 0)
         params.priority__in = appliedFilters.priority.join(',');
-      
-      // Fix for referral_details filtering - use search instead of referral_details__in
-      // which may not be supported by the API
       if (appliedFilters.referral_details.length > 0) {
-        // If we're already searching for something, we need to be more specific
         if (appliedSearchQuery) {
-          // Combine with existing search
-          const detailsSearches = appliedFilters.referral_details.map(detail => 
-            `"${detail}"`).join(' OR ');
+          const detailsSearches = appliedFilters.referral_details.map(detail => `"${detail}"`).join(' OR ');
           params.search = `${appliedSearchQuery} AND (${detailsSearches})`;
         } else {
-          // Just search for any of the selected details
           params.search = appliedFilters.referral_details.join(' OR ');
         }
       }
-      
       if (appliedFilters.team.length > 0)
         params.team__in = appliedFilters.team.join(',');
       if (appliedFilters.referral_type.length > 0)
@@ -370,7 +341,6 @@ const ReferralsPage = () => {
       if (appliedFilters.has_documents !== '')
         params.has_documents = appliedFilters.has_documents;
 
-      // Add debugging for API params
       if (process.env.NODE_ENV !== 'production') {
         console.log('API request parameters:', params);
       }
@@ -382,13 +352,9 @@ const ReferralsPage = () => {
         setReferrals(fetchedReferrals);
         setTotalCount(response.data.count || 0);
 
-        // Extract unique referral details for filter options
-        const details = Array.from(
-          new Set(fetchedReferrals.map(r => r.referral_details).filter(Boolean))
-        ).sort();
+        const details = Array.from(new Set(fetchedReferrals.map(r => r.referral_details).filter(Boolean))).sort();
         setAvailableReferralDetails(details);
 
-        // Organize referrals by type, team, and status for other views
         organizeReferrals(fetchedReferrals);
         calculateStats(fetchedReferrals, response.data.count);
       } else {
@@ -402,14 +368,12 @@ const ReferralsPage = () => {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [api, page, rowsPerPage, appliedSearchQuery, appliedFilters, getSortOrderString, calculateStats, organizeReferrals, handleApiError]);
+  }, [api, page, rowsPerPage, appliedSearchQuery, appliedFilters, getSortOrderString, organizeReferrals, calculateStats, handleApiError]);
 
-  // Initial fetch and updates
   useEffect(() => {
     fetchReferrals();
   }, [fetchReferrals]);
 
-  // Handle location state (for passing filters from other pages)
   useEffect(() => {
     if (location.state) {
       let newFilters = { ...filters };
@@ -434,7 +398,6 @@ const ReferralsPage = () => {
     }
   }, [location.state, location.pathname, navigate, filters]);
 
-  // Search and filter handlers
   const handleSearch = () => {
     setPage(0);
     setAppliedSearchQuery(searchQuery);
@@ -459,7 +422,6 @@ const ReferralsPage = () => {
     setFilterAnchorEl(null);
   };
 
-  // Pagination handlers
   const handleChangePage = (event, newPage) => setPage(newPage);
   
   const handleChangeRowsPerPage = (event) => {
@@ -467,9 +429,7 @@ const ReferralsPage = () => {
     setPage(0);
   };
 
-  // Sorting handlers
   const handleSort = (field) => {
-    // For status and team fields, ensure we're using the actual field names the API understands
     const fieldMapping = {
       'status': 'status',
       'team': 'team',
@@ -491,11 +451,9 @@ const ReferralsPage = () => {
     }
     setPage(0);
     
-    // Debug information
     console.log(`Sorting by: ${apiField}, direction: ${sortDirection === 'asc' ? 'desc' : 'asc'}`);
   };
 
-  // CRUD operations
   const handleAddReferral = () => {
     setEditingReferral(null);
     setOpenForm(true);
@@ -548,17 +506,13 @@ const ReferralsPage = () => {
     }
   };
 
-  // Export and utility functions
   const handleExportCsv = async () => {
     try {
-      // Since the export might use the same endpoint with different params
-      // we'll use a simple approach - just export what's visible in the current table
       if (referrals.length === 0) {
         showNotification('אין נתונים לייצוא. נסה להרחיב את הסינון תחילה', 'warning');
         return;
       }
       
-      // Create CSV content
       const headers = [
         'מספר סידורי', 'שם מלא', 'מספר אישי', 'צוות', 'הפניה מבוקשת', 
         'סטטוס', 'עדיפות', 'תאריך תור', 'מיקום תור', 'נוצר בתאריך', 'עודכן בתאריך'
@@ -578,11 +532,9 @@ const ReferralsPage = () => {
         formatDateTime(referral.updated_at)
       ]);
       
-      // Convert to CSV
       const csvContent = [
         headers.join(','),
         ...rows.map(row => row.map(cell => {
-          // Escape commas and quotes
           const cellStr = String(cell || '');
           if (cellStr.includes(',') || cellStr.includes('"')) {
             return `"${cellStr.replace(/"/g, '""')}"`;
@@ -591,7 +543,6 @@ const ReferralsPage = () => {
         }).join(','))
       ].join('\n');
       
-      // Create blob and download
       const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -626,14 +577,12 @@ const ReferralsPage = () => {
     setSnackbar(prev => ({ ...prev, open: false }));
   };
 
-  // Date/time formatting helper
   const formatDateTime = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return `${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
-  // Calculate days since
   const calculateDaysSince = (dateString) => {
     if (!dateString) return null;
     const date = new Date(dateString);
@@ -642,7 +591,6 @@ const ReferralsPage = () => {
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // Calculate days until appointment
   const calculateDaysUntil = (dateString) => {
     if (!dateString) return null;
     const date = new Date(dateString);
@@ -651,7 +599,6 @@ const ReferralsPage = () => {
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // Status badge with appointment info
   const StatusBadgeWithInfo = ({ referral }) => {
     const label = statusOptions.find(o => o.value === referral.status)?.label || referral.status_display || referral.status;
     const color = STATUS_COLORS[referral.status] || '#9e9e9e';
@@ -687,10 +634,8 @@ const ReferralsPage = () => {
     );
   };
 
-  // Calculate stats for chart
   const chartData = useMemo(() => {
     if (!stats.byStatus) return [];
-    
     return Object.entries(stats.byStatus)
       .filter(([_, count]) => count > 0)
       .map(([status, count]) => ({
@@ -700,10 +645,8 @@ const ReferralsPage = () => {
       }));
   }, [stats.byStatus, statusOptions]);
 
-  // Calculate stats for priority chart
   const priorityChartData = useMemo(() => {
     if (!stats.byPriority) return [];
-    
     return Object.entries(stats.byPriority)
       .filter(([_, count]) => count > 0)
       .map(([priority, count]) => ({
@@ -713,7 +656,6 @@ const ReferralsPage = () => {
       }));
   }, [stats.byPriority, priorityOptions]);
 
-  // Get default empty state message based on current view
   const getEmptyStateMessage = () => {
     switch (currentView) {
       case VIEWS.BY_TYPE:
@@ -727,7 +669,6 @@ const ReferralsPage = () => {
     }
   };
 
-  // Render the main referrals table
   const renderReferralsTable = (referralsToShow = referrals, showPagination = true) => (
     <TableContainer component={Paper} sx={{ mb: 2 }}>
       <Table size={isMobile ? "small" : "medium"}>
@@ -960,7 +901,6 @@ const ReferralsPage = () => {
     </TableContainer>
   );
 
-  // Render grouped referrals by type
   const renderReferralsByType = () => (
     <Box>
       {Object.entries(referralsByType).length === 0 ? (
@@ -994,7 +934,6 @@ const ReferralsPage = () => {
     </Box>
   );
 
-  // Render grouped referrals by team
   const renderReferralsByTeam = () => (
     <Box>
       {Object.entries(referralsByTeam).length === 0 ? (
@@ -1025,7 +964,6 @@ const ReferralsPage = () => {
     </Box>
   );
 
-  // Render grouped referrals by status
   const renderReferralsByStatus = () => (
     <Box>
       {Object.entries(referralsByStatus).length === 0 ? (
@@ -1069,7 +1007,6 @@ const ReferralsPage = () => {
     </Box>
   );
 
-  // Render stats and dashboard cards
   const renderStatsDashboard = () => (
     <Box>
       <Grid container spacing={3} mb={3}>
@@ -1141,9 +1078,18 @@ const ReferralsPage = () => {
                       </Pie>
                       <RechartsTooltip 
                         formatter={(value, name, props) => {
-                          // Find the original data item
-                          const item = priorityChartData[props.payload.payload.index];
-                          return [`${value} הפניות`, item.name];
+                          if (!props || !props.payload || !props.payload.payload || props.payload.payload.index === undefined) {
+                            return [value, name];
+                          }
+                          const index = props.payload.payload.index;
+                          const chartDataArray = priorityChartData || [];
+                          if (index >= 0 && index < chartDataArray.length) {
+                            const item = chartDataArray[index];
+                            if (item && item.name) {
+                              return [`${value} הפניות`, item.name];
+                            }
+                          }
+                          return [value, name];
                         }}
                       />
                       <Legend 
@@ -1151,8 +1097,10 @@ const ReferralsPage = () => {
                         verticalAlign="middle" 
                         align="right"
                         formatter={(value, entry, index) => {
-                          // Return the Hebrew name from our data
-                          return priorityChartData[index]?.name || value;
+                          if (index !== undefined && priorityChartData && index < priorityChartData.length) {
+                            return priorityChartData[index]?.name || value;
+                          }
+                          return value;
                         }}
                       />
                     </PieChart>
@@ -1324,7 +1272,6 @@ const ReferralsPage = () => {
     </Box>
   );
 
-  // Render the current view
   const renderCurrentView = () => {
     switch (currentView) {
       case VIEWS.BY_TYPE:
@@ -1339,7 +1286,6 @@ const ReferralsPage = () => {
     }
   };
 
-  // Render the filters panel
   const renderFiltersPanel = () => (
     <Drawer
       anchor="left"
@@ -1869,7 +1815,6 @@ const ReferralsPage = () => {
         )}
       </Paper>
 
-      {/* Dialogs and drawers */}
       {renderFiltersPanel()}
 
       <Dialog 
