@@ -2,15 +2,19 @@
 
 import axios from 'axios';
 
-// Configure base API instance
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+// קרוב לתחילת הקובץ
+import { API_BASE_URL, API_PREFIX } from '../config/api-config';
+
+// שנה את הגדרת ה-API_BASE_URL
+const API_URL = `${API_BASE_URL}${API_PREFIX}`;
+
+// שנה את הגדרת ה-api
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
   }
 });
-
 // Add authorization interceptor
 api.interceptors.request.use(
   (config) => {
@@ -27,15 +31,10 @@ api.interceptors.request.use(
 const BASE_URL = '/api/trainings';
 
 // Team Training
-export const getTeamTrainings = async (filters = {}) => {
-  const response = await api.get(`${BASE_URL}/team/`, { params: filters });
-  return response.data;
+export const getTeamTrainings = async () => {
+  return await getSafeData('/trainings/team/', 'teamTrainings'); // נתיב נכון לפי הגדרת השרת
 };
 
-export const getTeamTraining = async (id) => {
-  const response = await api.get(`${BASE_URL}/team/${id}/`);
-  return response.data;
-};
 
 export const createTeamTraining = async (data) => {
   const response = await api.post(`${BASE_URL}/team/`, data);

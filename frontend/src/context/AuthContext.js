@@ -4,9 +4,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
+// קרוב לתחילת הקובץ
+import { API_BASE_URL, API_PREFIX } from '../config/api-config';
 
+// שנה את הגדרת ה-API_URL
+export const API_URL = `${API_BASE_URL}${API_PREFIX}`;
 // יצירת API מרכזי
-export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 export const api = axios.create({
   baseURL: API_URL,
