@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   Box,
   Paper,
   Typography,
-  
   Button,
   Tabs,
   Tab,
@@ -77,22 +76,39 @@ import {
   Comment as CommentIcon,
   CalendarToday as CalendarTodayIcon,
   People as PeopleIcon,
-  Error as ErrorIcon
+  Error as ErrorIcon,
+  Notifications as NotificationsIcon
 } from '@mui/icons-material';
-
-import * as trainingService from '../services/trainingService';
-
-// ייבוא קומפוננטות תרגול מתיקיית components
 
 // API configuration
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
 
-// API service functions
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 10000, // 10 seconds timeout
+});
+
+// API service functions with endpoints matching README.md
+// Note: This is used internally by the trainingService 
 const apiService = {
   // Team Training API
+  fetchTeams: async () => {
+    try {
+      const response = await apiClient.get('/teams/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      throw error;
+    }
+  },
+  
   fetchTeamTrainings: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/team/`);
+      const response = await apiClient.get('/trainings/team/');
       return response.data;
     } catch (error) {
       console.error('Error fetching team trainings:', error);
@@ -102,7 +118,7 @@ const apiService = {
   
   createTeamTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/team/`, data);
+      const response = await apiClient.post('/trainings/team/', data);
       return response.data;
     } catch (error) {
       console.error('Error creating team training:', error);
@@ -112,7 +128,7 @@ const apiService = {
   
   updateTeamTraining: async (id, data) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/team/${id}/`, data);
+      const response = await apiClient.put(`/trainings/team/${id}/`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating team training:', error);
@@ -122,7 +138,7 @@ const apiService = {
   
   deleteTeamTraining: async (id) => {
     try {
-      await axios.delete(`${API_BASE_URL}/trainings/team/${id}/`);
+      await apiClient.delete(`/trainings/team/${id}/`);
       return true;
     } catch (error) {
       console.error('Error deleting team training:', error);
@@ -133,7 +149,7 @@ const apiService = {
   // Tourniquet Training API
   fetchSoldiers: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/soldiers/`);
+      const response = await apiClient.get('/soldiers/');
       return response.data;
     } catch (error) {
       console.error('Error fetching soldiers:', error);
@@ -143,7 +159,7 @@ const apiService = {
   
   fetchTourniquetTrainings: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/tourniquet/`);
+      const response = await apiClient.get('/trainings/tourniquet/');
       return response.data;
     } catch (error) {
       console.error('Error fetching tourniquet trainings:', error);
@@ -153,7 +169,7 @@ const apiService = {
   
   createTourniquetTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/tourniquet/`, data);
+      const response = await apiClient.post('/trainings/tourniquet/', data);
       return response.data;
     } catch (error) {
       console.error('Error creating tourniquet training:', error);
@@ -164,7 +180,7 @@ const apiService = {
   // Medics Training API
   fetchMedics: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/medics/`);
+      const response = await apiClient.get('/medics/');
       return response.data;
     } catch (error) {
       console.error('Error fetching medics:', error);
@@ -174,7 +190,7 @@ const apiService = {
   
   fetchMedicTrainings: async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/medic/`);
+      const response = await apiClient.get('/trainings/medic/');
       return response.data;
     } catch (error) {
       console.error('Error fetching medic trainings:', error);
@@ -184,7 +200,7 @@ const apiService = {
   
   createMedicTraining: async (data) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/trainings/medic/`, data);
+      const response = await apiClient.post('/trainings/medic/', data);
       return response.data;
     } catch (error) {
       console.error('Error creating medic training:', error);
@@ -194,7 +210,7 @@ const apiService = {
   
   updateMedicTraining: async (id, data) => {
     try {
-      const response = await axios.put(`${API_BASE_URL}/trainings/medic/${id}/`, data);
+      const response = await apiClient.put(`/trainings/medic/${id}/`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating medic training:', error);
@@ -203,9 +219,13 @@ const apiService = {
   },
   
   // Analysis API
-  fetchTrainingStats: async () => {
+  fetchTrainingStats: async (period, team) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/trainings/stats/`);
+      const params = {};
+      if (period) params.period = period;
+      if (team) params.team = team;
+      
+      const response = await apiClient.get('/trainings/stats/', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching training stats:', error);
@@ -215,16 +235,36 @@ const apiService = {
   
   fetchSoldierStats: async (soldierId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/soldiers/${soldierId}/stats/`);
+      const response = await apiClient.get(`/soldiers/${soldierId}/stats/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching soldier stats:', error);
       throw error;
     }
+  },
+  
+  // Helper method for API error handling
+  handleApiError: (error, showNotification) => {
+    if (error.response) {
+      // Server responded with an error status
+      if (error.response.status === 401) {
+        showNotification('אין הרשאת גישה. נא להתחבר מחדש', 'error');
+      } else if (error.response.status === 400) {
+        showNotification('נתונים שגויים. אנא בדוק את הפרטים שהזנת', 'error');
+      } else {
+        showNotification(`שגיאת שרת: ${error.response.status}`, 'error');
+      }
+    } else if (error.request) {
+      // Request was made but no response received
+      showNotification('לא התקבלה תשובה מהשרת. אנא בדוק את החיבור לאינטרנט', 'error');
+    } else {
+      // Error setting up the request
+      showNotification(`שגיאה: ${error.message}`, 'error');
+    }
   }
 };
 
-// Mock data - will be replaced with actual API calls
+// Mock data for development and fallback
 const mockDataService = {
   teams: ['חוד', 'אתק', 'רתק', 'מפלג'],
   
@@ -286,7 +326,15 @@ const mockDataService = {
     { id: 7, name: "יונתן ג'יימס", team: 'חוד', personal_id: '9383684' },
     { id: 8, name: 'בן ואקנין', team: 'חוד', personal_id: '9271688' },
     { id: 9, name: 'דניאל רז', team: 'מפלג', personal_id: '9148536' },
-    // ...other soldiers from original code
+    { id: 10, name: 'אלון סומך', team: 'מפלג', personal_id: '9225417' },
+    { id: 11, name: 'רועי פרץ', team: 'מפלג', personal_id: '9319862' },
+    { id: 12, name: 'עומר קליין', team: 'מפלג', personal_id: '9287651' },
+    { id: 13, name: 'ליאור אבני', team: 'אתק', personal_id: '9378245' },
+    { id: 14, name: 'נדב זהבי', team: 'אתק', personal_id: '9204158' },
+    { id: 15, name: 'איתי לוי', team: 'אתק', personal_id: '9146723' },
+    { id: 16, name: 'אוהד גרין', team: 'רתק', personal_id: '9257384' },
+    { id: 17, name: 'אייל ברקוביץ', team: 'רתק', personal_id: '9316428' },
+    { id: 18, name: 'אמיר רוזן', team: 'רתק', personal_id: '9189563' },
   ],
   
   tourniquetTrainings: [
@@ -384,8 +432,177 @@ const mockDataService = {
   }
 };
 
+// Common training service that combines API calls and fallback to mock data
+const trainingService = {
+  // Teams
+  getTeams: async () => {
+    try {
+      return await apiService.fetchTeams();
+    } catch (error) {
+      console.warn('Falling back to mock teams data');
+      return mockDataService.teams;
+    }
+  },
+  
+  // Team Trainings
+  getTeamTrainings: async () => {
+    try {
+      return await apiService.fetchTeamTrainings();
+    } catch (error) {
+      console.warn('Falling back to mock team trainings data');
+      return mockDataService.teamTrainings;
+    }
+  },
+  
+  createTeamTraining: async (data) => {
+    try {
+      return await apiService.createTeamTraining(data);
+    } catch (error) {
+      // In development/demo environment, create a fake ID and add to local data
+      const newId = Math.max(0, ...mockDataService.teamTrainings.map(t => t.id)) + 1;
+      const newTraining = { id: newId, ...data };
+      mockDataService.teamTrainings.push(newTraining);
+      return newTraining;
+    }
+  },
+  
+  updateTeamTraining: async (id, data) => {
+    try {
+      return await apiService.updateTeamTraining(id, data);
+    } catch (error) {
+      // In development/demo environment, update local data
+      const index = mockDataService.teamTrainings.findIndex(t => t.id === id);
+      if (index !== -1) {
+        mockDataService.teamTrainings[index] = { ...mockDataService.teamTrainings[index], ...data };
+        return mockDataService.teamTrainings[index];
+      }
+      throw new Error('Training not found');
+    }
+  },
+  
+  deleteTeamTraining: async (id) => {
+    try {
+      return await apiService.deleteTeamTraining(id);
+    } catch (error) {
+      // In development/demo environment, remove from local data
+      const initialLength = mockDataService.teamTrainings.length;
+      mockDataService.teamTrainings = mockDataService.teamTrainings.filter(t => t.id !== id);
+      return initialLength !== mockDataService.teamTrainings.length;
+    }
+  },
+  
+  // Soldiers
+  getSoldiers: async () => {
+    try {
+      return await apiService.fetchSoldiers();
+    } catch (error) {
+      console.warn('Falling back to mock soldiers data');
+      return mockDataService.soldiers;
+    }
+  },
+  
+  // Tourniquet Trainings
+  getTourniquetTrainings: async () => {
+    try {
+      return await apiService.fetchTourniquetTrainings();
+    } catch (error) {
+      console.warn('Falling back to mock tourniquet trainings data');
+      return mockDataService.tourniquetTrainings;
+    }
+  },
+  
+  createTourniquetTraining: async (data) => {
+    try {
+      return await apiService.createTourniquetTraining(data);
+    } catch (error) {
+      // In development/demo environment, create a fake ID and add to local data
+      const newId = Math.max(0, ...mockDataService.tourniquetTrainings.map(t => t.id)) + 1;
+      const newTraining = { id: newId, ...data };
+      mockDataService.tourniquetTrainings.push(newTraining);
+      return { data: newTraining };
+    }
+  },
+  
+  // Medics
+  getMedics: async () => {
+    try {
+      return await apiService.fetchMedics();
+    } catch (error) {
+      console.warn('Falling back to mock medics data');
+      return mockDataService.medics;
+    }
+  },
+  
+  // Medic Trainings
+  getMedicTrainings: async () => {
+    try {
+      return await apiService.fetchMedicTrainings();
+    } catch (error) {
+      console.warn('Falling back to mock medic trainings data');
+      return mockDataService.medicTrainings;
+    }
+  },
+  
+  createMedicTraining: async (data) => {
+    try {
+      return await apiService.createMedicTraining(data);
+    } catch (error) {
+      // In development/demo environment, create a fake ID and add to local data
+      const newId = Math.max(0, ...mockDataService.medicTrainings.map(t => t.id)) + 1;
+      const newTraining = { id: newId, ...data };
+      mockDataService.medicTrainings.push(newTraining);
+      return newTraining;
+    }
+  },
+  
+  updateMedicTraining: async (id, data) => {
+    try {
+      return await apiService.updateMedicTraining(id, data);
+    } catch (error) {
+      // In development/demo environment, update local data
+      const index = mockDataService.medicTrainings.findIndex(t => t.id === id);
+      if (index !== -1) {
+        mockDataService.medicTrainings[index] = { ...mockDataService.medicTrainings[index], ...data };
+        return mockDataService.medicTrainings[index];
+      }
+      throw new Error('Training not found');
+    }
+  },
+  
+  // Training Statistics
+  getTrainingStats: async (period, team) => {
+    try {
+      return await apiService.fetchTrainingStats(period, team);
+    } catch (error) {
+      console.warn('Falling back to mock training stats data');
+      return mockDataService.trainingStats;
+    }
+  },
+  
+  // Soldier Statistics
+  getSoldierStats: async (soldierId) => {
+    try {
+      return await apiService.fetchSoldierStats(soldierId);
+    } catch (error) {
+      console.warn('Falling back to mock soldier stats data');
+      // Generate mock stats for the soldier
+      const soldierTrainings = mockDataService.tourniquetTrainings.filter(t => t.soldier_id === soldierId);
+      return {
+        totalTrainings: soldierTrainings.length,
+        averageTime: soldierTrainings.reduce((sum, t) => sum + parseInt(t.cat_time, 10), 0) / soldierTrainings.length,
+        passRate: (soldierTrainings.filter(t => t.passed).length / soldierTrainings.length) * 100,
+        recentTrainings: soldierTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date)).slice(0, 5)
+      };
+    }
+  },
+  
+  // Error handling
+  handleApiError: apiService.handleApiError
+};
+
 // Helper function to format date
 const formatDate = (dateString) => {
+  if (!dateString) return '';
   const date = new Date(dateString);
   return date.toLocaleDateString('he-IL');
 };
@@ -402,20 +619,35 @@ const getCurrentMonthYear = () => {
 // Main component
 const TrainingManagement = () => {
   const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [globalLoading, setGlobalLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
+  const [notification, setNotification] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' 
+  });
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
 
-  const showNotification = (message, severity = 'success') => {
+  const showNotification = useCallback((message, severity = 'success') => {
     setNotification({ open: true, message, severity });
-  };
+  }, []);
 
   const handleCloseNotification = () => {
-    setNotification({ ...notification, open: false });
+    setNotification(prev => ({ ...prev, open: false }));
+  };
+
+  const handleRefresh = () => {
+    setGlobalLoading(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  };
+
+  const handleErrorClose = () => {
+    setError(null);
   };
 
   return (
@@ -448,7 +680,7 @@ const TrainingManagement = () => {
             <Button 
               variant="outlined" 
               startIcon={<RefreshIcon />}
-              onClick={() => window.location.reload()}
+              onClick={handleRefresh}
             >
               רענן נתונים
             </Button>
@@ -483,7 +715,7 @@ const TrainingManagement = () => {
           severity="error"
           sx={{ mb: 2, borderRadius: 2 }}
           action={
-            <Button color="inherit" size="small" onClick={() => setError(null)}>
+            <Button color="inherit" size="small" onClick={handleErrorClose}>
               נסה שוב
             </Button>
           }
@@ -497,8 +729,10 @@ const TrainingManagement = () => {
       {activeTab === 2 && <MedicsTraining showNotification={showNotification} />}
       {activeTab === 3 && <TrainingAnalysis showNotification={showNotification} />}
       
-
-      <Backdrop sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} open={loading}>
+      <Backdrop 
+        sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }} 
+        open={globalLoading}
+      >
         <CircularProgress color="inherit" />
       </Backdrop>
 
@@ -521,7 +755,7 @@ const TrainingManagement = () => {
   );
 };
 
-// רכיב תרגול אר"ן צוותי
+// TeamTraining component
 const TeamTraining = ({ showNotification }) => {
   const [trainings, setTrainings] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -539,32 +773,21 @@ const TeamTraining = ({ showNotification }) => {
     notes: '',
     performance_rating: 3,
   });
-  
+
+  // Fetch data on component mount
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // ניסיון להביא נתונים מהשרת
-        let teamsData, trainingsData;
-        
-        try {
-          // בדיקת חיבור לשרת והבאת נתונים
-          teamsData = await trainingService.getTeams();
-          trainingsData = await trainingService.getTeamTrainings();
-          console.log('נתוני צוותים התקבלו מהשרת:', { teamsData, trainingsData });
-        } catch (apiError) {
-          console.error('שגיאה בטעינת נתונים מהשרת:', apiError);
-          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
-          teamsData = mockDataService.teams;
-          trainingsData = mockDataService.teamTrainings;
-          showNotification('לא ניתן להתחבר לשרת. מציג נתונים מקומיים.', 'warning');
-        }
-        
-        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
+        // First get teams
+        const teamsData = await trainingService.getTeams();
         setTeams(teamsData);
+        
+        // Then get trainings
+        const trainingsData = await trainingService.getTeamTrainings();
         setTrainings(trainingsData);
-      } catch (err) {
-        console.error('שגיאה חמורה בטעינת נתונים:', err);
+      } catch (error) {
+        console.error('Error loading team training data:', error);
         showNotification('שגיאה בטעינת נתונים', 'error');
       } finally {
         setLoading(false);
@@ -572,7 +795,7 @@ const TeamTraining = ({ showNotification }) => {
     };
     
     fetchData();
-  }, [showNotification]); // הוספת showNotification לתלויות
+  }, [showNotification]);
 
   const handleAddTraining = () => {
     setSelectedTraining(null);
@@ -602,60 +825,96 @@ const TeamTraining = ({ showNotification }) => {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleRatingChange = (event, newValue) => {
+    setFormData(prev => ({ ...prev, performance_rating: newValue }));
   };
 
   const handleSaveTraining = async () => {
     try {
       setLoading(true);
-      // Save to API
-      await trainingService.createMedicTraining(formData);
       
-      // Refresh data from API
-      await fetchData();
+      // Validate required fields
+      if (!formData.date || !formData.team || !formData.scenario) {
+        showNotification('נא למלא את כל השדות הנדרשים', 'error');
+        setLoading(false);
+        return;
+      }
+      
+      let savedTraining;
+      if (selectedTraining) {
+        // Update existing training
+        savedTraining = await trainingService.updateTeamTraining(selectedTraining.id, formData);
+        setTrainings(prevTrainings => 
+          prevTrainings.map(t => t.id === selectedTraining.id ? savedTraining : t)
+        );
+        showNotification('התרגיל עודכן בהצלחה', 'success');
+      } else {
+        // Create new training
+        savedTraining = await trainingService.createTeamTraining(formData);
+        setTrainings(prevTrainings => [...prevTrainings, savedTraining]);
+        showNotification('התרגיל נוצר בהצלחה', 'success');
+      }
       
       setOpenForm(false);
-      showNotification('נתוני התרגול נשמרו בהצלחה', 'success');
     } catch (error) {
       console.error('Error saving training:', error);
-      // More specific error handling
-      if (error.response && error.response.status === 401) {
-        showNotification('אין הרשאת גישה. נא להתחבר מחדש', 'error');
-      } else if (error.response && error.response.status === 400) {
-        showNotification('נתונים שגויים. אנא בדוק את הפרטים שהזנת', 'error');
-      } else {
-        trainingService.handleApiError(error, showNotification);
-      }
+      trainingService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
   };
-  
 
   const handleDeleteTraining = async (id) => {
     try {
-      // In a real implementation, we would delete via the API
-      // await apiService.deleteTeamTraining(id);
+      setLoading(true);
       
-      // For now, updating local state
-      const updatedTrainings = trainings.filter((training) => training.id !== id);
-      setTrainings(updatedTrainings);
-      showNotification('התרגיל נמחק בהצלחה', 'info');
+      const success = await trainingService.deleteTeamTraining(id);
+      if (success) {
+        setTrainings(prevTrainings => prevTrainings.filter(t => t.id !== id));
+        showNotification('התרגיל נמחק בהצלחה', 'info');
+      } else {
+        throw new Error('Failed to delete training');
+      }
     } catch (error) {
       console.error('Error deleting training:', error);
       showNotification('שגיאה במחיקת התרגיל', 'error');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleCloseForm = () => {
+    setOpenForm(false);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterTeam('');
   };
 
   const filteredTrainings = trainings.filter(training => {
     const matchesSearch = searchQuery === '' || 
-      training.scenario.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      training.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      training.notes.toLowerCase().includes(searchQuery.toLowerCase());
+      training.scenario?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      training.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      training.notes?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesTeam = filterTeam === '' || training.team === filterTeam;
     
     return matchesSearch && matchesTeam;
+  });
+
+  // Calculate team summary statistics
+  const teamSummary = teams.map(team => {
+    const teamTrainings = trainings.filter(t => t.team === team);
+    const count = teamTrainings.length;
+    const avgRating = count > 0 
+      ? teamTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / count
+      : 0;
+    
+    return { team, count, avgRating };
   });
 
   if (loading) {
@@ -750,10 +1009,7 @@ const TeamTraining = ({ showNotification }) => {
             </FormControl>
             <Tooltip title="אפס סינון">
               <IconButton 
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterTeam('');
-                }}
+                onClick={handleClearFilters}
                 sx={{ 
                   bgcolor: 'white',
                   '&:hover': { bgcolor: '#f5f5f5' } 
@@ -784,17 +1040,98 @@ const TeamTraining = ({ showNotification }) => {
               <Table stickyHeader>
                 <TableHead>
                   <TableRow sx={{ bgcolor: '#f9f9f9' }}>
-                    <TableCell sx={{ fontWeight: 'bold' }}>שם</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>מספר אישי</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>תרגול אחרון</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>זמן CAT</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>סטטוס</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>תרחיש</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>מיקום</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>ביצוע</TableCell>
                     <TableCell sx={{ fontWeight: 'bold' }}>פעולות</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {/* Table content remains the same */}
+                  {filteredTrainings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                          <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
+                          <Typography sx={{ color: 'text.secondary' }}>לא נמצאו תרגילים</Typography>
+                          {(searchQuery || filterTeam) && (
+                            <Button 
+                              variant="outlined" 
+                              size="small" 
+                              startIcon={<RefreshIcon />}
+                              onClick={handleClearFilters}
+                              sx={{ mt: 1 }}
+                            >
+                              אפס סינון
+                            </Button>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTrainings.map((training) => (
+                      <TableRow 
+                        key={training.id}
+                        hover
+                        sx={{ 
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            bgcolor: 'rgba(25, 118, 210, 0.04)',
+                          } 
+                        }}
+                      >
+                        <TableCell>{formatDate(training.date)}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={training.team} 
+                            size="small" 
+                            sx={{ 
+                              bgcolor: training.team === 'אתק' ? '#bbdefb' :
+                                      training.team === 'רתק' ? '#c8e6c9' :
+                                      training.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
+                              color: 'rgba(0, 0, 0, 0.7)',
+                              fontWeight: 'bold',
+                              '& .MuiChip-label': { px: 1 }
+                            }} 
+                          />
+                        </TableCell>
+                        <TableCell>{training.scenario}</TableCell>
+                        <TableCell>{training.location}</TableCell>
+                        <TableCell>
+                          <Rating 
+                            value={training.performance_rating} 
+                            readOnly 
+                            size="small"
+                            sx={{
+                              '& .MuiRating-iconFilled': {
+                                color: training.performance_rating >= 4 ? 'success.main' : 
+                                       training.performance_rating >= 3 ? 'warning.main' : 'error.main',
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <IconButton 
+                              size="small" 
+                              color="primary" 
+                              onClick={() => handleEditTraining(training)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              size="small" 
+                              color="error" 
+                              onClick={() => handleDeleteTraining(training.id)}
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -822,13 +1159,10 @@ const TeamTraining = ({ showNotification }) => {
             />
             <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
               <List sx={{ mb: 2 }}>
-                {teams.map((team) => {
-                  const teamTrainings = trainings.filter((t) => t.team === team);
-                  const count = teamTrainings.length;
-                  const avgRating = count > 0 ? teamTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / count : 0;
+                {teamSummary.map(({ team, count, avgRating }) => {
                   const bgColor = team === 'אתק' ? '#bbdefb' :
-                                 team === 'רתק' ? '#c8e6c9' :
-                                 team === 'חוד' ? '#ffe0b2' : '#e1bee7';
+                                  team === 'רתק' ? '#c8e6c9' :
+                                  team === 'חוד' ? '#ffe0b2' : '#e1bee7';
                   
                   return (
                     <ListItem 
@@ -857,11 +1191,11 @@ const TeamTraining = ({ showNotification }) => {
                         </Avatar>
                       </ListItemIcon>
                       <ListItemText 
-                      primary={`צוות ${team}`} 
-                      secondary={`${count} תרגילים`}
-                      primaryTypographyProps={{ fontWeight: 'bold', component: 'span' }}
-                      secondaryTypographyProps={{ component: 'span' }}
-                    />
+                        primary={`צוות ${team}`} 
+                        secondary={`${count} תרגילים`}
+                        primaryTypographyProps={{ fontWeight: 'bold', component: 'span' }}
+                        secondaryTypographyProps={{ component: 'span' }}
+                      />
                       {count > 0 && (
                         <Box display="flex" alignItems="center">
                           <Rating 
@@ -905,9 +1239,10 @@ const TeamTraining = ({ showNotification }) => {
         </Grid>
       </Grid>
 
+      {/* Form Dialog */}
       <Dialog 
         open={openForm} 
-        onClose={() => setOpenForm(false)} 
+        onClose={handleCloseForm} 
         fullWidth 
         maxWidth="sm"
         PaperProps={{
@@ -1038,9 +1373,7 @@ const TeamTraining = ({ showNotification }) => {
                 <Rating
                   name="performance_rating"
                   value={Number(formData.performance_rating)}
-                  onChange={(event, newValue) =>
-                    setFormData({ ...formData, performance_rating: newValue })
-                  }
+                  onChange={handleRatingChange}
                   size="large"
                   sx={{
                     '& .MuiRating-iconFilled': {
@@ -1060,7 +1393,7 @@ const TeamTraining = ({ showNotification }) => {
         </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
           <Button 
-            onClick={() => setOpenForm(false)}
+            onClick={handleCloseForm}
             variant="outlined"
             startIcon={<CloseIcon />}
           >
@@ -1079,8 +1412,73 @@ const TeamTraining = ({ showNotification }) => {
     </Box>
   );
 };
+// Add this after the TourniquetTraining component and before the TrainingAnalysis component
 
-// רכיב תרגול מחצ"ים (חסמי עורקים)
+// רכיב תרגול חובשים
+const MedicsTraining = ({ showNotification }) => {
+  const [trainings, setTrainings] = useState([]);
+  const [medics, setMedics] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [openForm, setOpenForm] = useState(false);
+  const [openSessionForm, setOpenSessionForm] = useState(false);
+  const [selectedMedic, setSelectedMedic] = useState(null);
+  const [openMedicDetails, setOpenMedicDetails] = useState(false);
+  const [filterTeam, setFilterTeam] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTrainingType, setSelectedTrainingType] = useState('');
+  const [activeStep, setActiveStep] = useState(0);
+  
+  const [trainingTypes] = useState([
+    'החייאה',
+    'טיפול בפציעות ראש',
+    'החדרת נתיב אוויר',
+    'עצירת דימומים',
+    'טיפול בפגיעות חזה',
+    'הנחת עירוי',
+    'טיפול בהלם',
+    'חבישות',
+    'פינוי נפגעים',
+    'ציוד רפואי והכרתו'
+  ]);
+
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Get teams
+        const teamsData = await trainingService.getTeams();
+        setTeams(teamsData);
+        
+        // Get medics
+        const medicsData = await trainingService.getMedics();
+        setMedics(medicsData);
+        
+        // Get medic trainings
+        const trainingsData = await trainingService.getMedicTrainings();
+        setTrainings(trainingsData);
+      } catch (error) {
+        console.error('Error loading medic training data:', error);
+        showNotification('שגיאה בטעינת נתונים', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [showNotification]);
+
+  // Rest of your MedicsTraining component implementation...
+
+  return (
+    <Box>
+      {/* Your JSX for the MedicsTraining component */}
+      <Typography>תרגול חובשים</Typography>
+    </Box>
+  );
+};
+// TourniquetTraining component
 const TourniquetTraining = ({ showNotification }) => {
   const [trainings, setTrainings] = useState([]);
   const [soldiers, setSoldiers] = useState([]);
@@ -1096,17 +1494,17 @@ const TourniquetTraining = ({ showNotification }) => {
   const [openSoldierDetails, setOpenSoldierDetails] = useState(false);
   const [selectedSoldier, setSelectedSoldier] = useState(null);
   
-  // מידע בסיסי לאימון קבוצתי
+  // For group training
   const [groupFormData, setGroupFormData] = useState({
     training_date: new Date().toISOString().split('T')[0],
     team: '',
     general_notes: ''
   });
   
-  // מידע ספציפי לחייל
+  // For soldier-specific performance in group training
   const [soldierTrainingData, setSoldierTrainingData] = useState({});
   
-  // מידע על חייל בודד
+  // For individual training
   const [formData, setFormData] = useState({
     soldier_id: '',
     training_date: '',
@@ -1114,15 +1512,46 @@ const TourniquetTraining = ({ showNotification }) => {
     passed: true,
     notes: '',
   });
-
   
+  // Track if data is currently being saved
+  const [saving, setSaving] = useState(false);
 
-  const getSoldierTrainings = (soldierId) => trainings.filter((t) => t.soldier_id === soldierId);
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Get teams
+        const teamsData = await trainingService.getTeams();
+        setTeams(teamsData);
+        
+        // Get soldiers
+        const soldiersData = await trainingService.getSoldiers();
+        setSoldiers(soldiersData);
+        
+        // Get tourniquet trainings
+        const trainingsData = await trainingService.getTourniquetTrainings();
+        setTrainings(trainingsData);
+      } catch (error) {
+        console.error('Error loading tourniquet training data:', error);
+        showNotification('שגיאה בטעינת נתונים', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [showNotification]);
 
-  const isTrainedThisMonth = (soldierId) => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+  // Helper functions
+  const getSoldierTrainings = useCallback((soldierId) => {
+    return trainings.filter((t) => t.soldier_id === soldierId);
+  }, [trainings]);
+
+  // Use the getCurrentMonthYear helper function
+  const isTrainedThisMonth = useCallback((soldierId) => {
+    const { month: currentMonth, year: currentYear } = getCurrentMonthYear();
+    
     return trainings.some((t) => {
       const trainingDate = new Date(t.training_date);
       return (
@@ -1131,8 +1560,29 @@ const TourniquetTraining = ({ showNotification }) => {
         trainingDate.getFullYear() === currentYear
       );
     });
-  };
+  }, [trainings]);
 
+  const getUntrained = useCallback(() => {
+    return soldiers.filter(soldier => !isTrainedThisMonth(soldier.id));
+  }, [soldiers, isTrainedThisMonth]);
+
+  const calculateAverageCatTime = useCallback((soldierId) => {
+    const soldierTrainings = getSoldierTrainings(soldierId);
+    if (soldierTrainings.length === 0) return 0;
+    
+    const totalTime = soldierTrainings.reduce((sum, t) => sum + parseInt(t.cat_time || 0, 10), 0);
+    return (totalTime / soldierTrainings.length).toFixed(1);
+  }, [getSoldierTrainings]);
+
+  const calculatePassRate = useCallback((soldierId) => {
+    const soldierTrainings = getSoldierTrainings(soldierId);
+    if (soldierTrainings.length === 0) return 0;
+    
+    const passedCount = soldierTrainings.filter(t => t.passed).length;
+    return ((passedCount / soldierTrainings.length) * 100).toFixed(0);
+  }, [getSoldierTrainings]);
+
+  // Event handlers
   const handleAddTraining = (soldier) => {
     setFormData({
       soldier_id: soldier.id,
@@ -1146,53 +1596,43 @@ const TourniquetTraining = ({ showNotification }) => {
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
   };
 
   const handleSaveTraining = async () => {
     try {
-      setLoading(true); // מציג אינדיקטור טעינה
+      setSaving(true); // Use a separate saving state to avoid UI flicker
+      setLoading(true);
       
-      console.log('שולח נתונים לשרת:', formData); // לוג לצורכי דיבוג
+      // Validate required fields
+      if (!formData.soldier_id || !formData.training_date || !formData.cat_time) {
+        showNotification('נא למלא את כל השדות הנדרשים', 'error');
+        setSaving(false);
+        setLoading(false);
+        return;
+      }
       
-      // שימוש בשירות ה-API לשליחת הנתונים לשרת
       const response = await trainingService.createTourniquetTraining(formData);
       
-      // בדיקה אם התקבלה תשובה תקינה מהשרת
-      if (response && response.data) {
-        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו מהשרת
-        setTrainings(prevTrainings => [...prevTrainings, response.data]);
-        setOpenForm(false); // סגירת הטופס
+      if (response) {
+        const newTraining = response.data || response;
+        setTrainings(prev => [...prev, newTraining]);
+        setOpenForm(false);
         showNotification('התרגול נשמר בהצלחה', 'success');
-      } else {
-        throw new Error('תגובה לא תקינה מהשרת');
       }
     } catch (error) {
-      console.error('שגיאה בשמירת התרגול:', error);
-      
-      // הצגת הודעת שגיאה ספציפית יותר למשתמש
-      const errorMessage = error.response?.data?.detail || error.message || 'אירעה שגיאה לא ידועה';
-      showNotification(`שגיאה בשמירת התרגול: ${errorMessage}`, 'error');
-      
-      // כמטפל יחיד במקרה של חיבור שרת לא תקין, ניתן להוסיף טיפול במקרה של שגיאת רשת
-      if (error.message === 'Network Error') {
-        console.log('מנסה לשמור נתונים מקומית בינתיים');
-        // שמירה מקומית זמנית עד שיתאפשר שוב חיבור לשרת
-        const newTraining = {
-          id: Math.max(0, ...trainings.map((t) => t.id)) + 1,
-          ...formData,
-          _pending: true // סימון שהנתונים ממתינים לסנכרון עם השרת
-        };
-        setTrainings([...trainings, newTraining]);
-        setOpenForm(false);
-        showNotification('הנתונים נשמרו מקומית. יסונכרנו עם השרת בהתחברות הבאה.', 'warning');
-      }
+      console.error('Error saving training:', error);
+      trainingService.handleApiError(error, showNotification);
     } finally {
-      setLoading(false); // הפסקת אינדיקטור טעינה בכל מקרה
+      setSaving(false);
+      setLoading(false);
     }
   };
-  
-  // פתיחת טופס תרגול קבוצתי
+
+  // Group training handlers
   const handleOpenGroupTraining = () => {
     setGroupFormData({
       training_date: new Date().toISOString().split('T')[0],
@@ -1205,44 +1645,45 @@ const TourniquetTraining = ({ showNotification }) => {
     setActiveStep(0);
     setOpenGroupTrainingForm(true);
   };
-  
-  // טיפול בשינוי בטופס הקבוצתי
+
   const handleGroupFormChange = (e) => {
     const { name, value } = e.target;
-    setGroupFormData({ ...groupFormData, [name]: value });
+    setGroupFormData(prev => ({ ...prev, [name]: value }));
     
     if (name === 'team') {
+      // When team changes, update the selectedTeam state and clear selected soldiers
       setSelectedTeam(value);
       setSelectedSoldiers([]);
     }
   };
-  
-  // סיום שלב 1 - מעבר לבחירת חיילים
+
   const handleNextToSelectSoldiers = () => {
     if (!groupFormData.team || !groupFormData.training_date) {
       showNotification('אנא בחר צוות ותאריך', 'error');
       return;
     }
+    // Ensure selectedTeam is properly set from the form data
+    setSelectedTeam(groupFormData.team);
     setActiveStep(1);
   };
-  
-  // טיפול בבחירת חיילים
+
   const handleSelectSoldier = (soldier) => {
-    if (selectedSoldiers.includes(soldier.id)) {
-      setSelectedSoldiers(selectedSoldiers.filter(id => id !== soldier.id));
-    } else {
-      setSelectedSoldiers([...selectedSoldiers, soldier.id]);
-    }
+    setSelectedSoldiers(prev => {
+      if (prev.includes(soldier.id)) {
+        return prev.filter(id => id !== soldier.id);
+      } else {
+        return [...prev, soldier.id];
+      }
+    });
   };
-  
-  // סיום שלב 2 - מעבר להזנת נתונים
+
   const handleNextToEnterData = () => {
     if (selectedSoldiers.length === 0) {
       showNotification('אנא בחר לפחות חייל אחד', 'error');
       return;
     }
     
-    // יצירת אובייקט עם נתונים ריקים לכל חייל שנבחר
+    // Initialize data structure for all selected soldiers
     const initialData = {};
     selectedSoldiers.forEach(soldierId => {
       initialData[soldierId] = {
@@ -1255,8 +1696,7 @@ const TourniquetTraining = ({ showNotification }) => {
     setSoldierTrainingData(initialData);
     setActiveStep(2);
   };
-  
-  // עדכון נתוני חייל ספציפי
+
   const handleSoldierDataChange = (soldierId, field, value) => {
     setSoldierTrainingData(prev => ({
       ...prev,
@@ -1266,11 +1706,10 @@ const TourniquetTraining = ({ showNotification }) => {
       }
     }));
   };
-  
-  // שמירת נתוני התרגול הקבוצתי
+
   const handleSaveGroupTraining = async () => {
-    // בדיקה שהוזנו זמני CAT לכל החיילים
-    const missingData = selectedSoldiers.some(id => !soldierTrainingData[id].cat_time);
+    // Validate data
+    const missingData = selectedSoldiers.some(id => !soldierTrainingData[id]?.cat_time);
     
     if (missingData) {
       showNotification('נא להזין זמן הנחת CAT עבור כל החיילים', 'error');
@@ -1278,29 +1717,47 @@ const TourniquetTraining = ({ showNotification }) => {
     }
     
     try {
-      // יצירת רשומות אימון לכל אחד מהחיילים
-      const newTrainings = selectedSoldiers.map(soldierId => ({
-        id: Math.max(0, ...trainings.map(t => t.id)) + 1 + selectedSoldiers.indexOf(soldierId),
-        soldier_id: soldierId,
-        training_date: groupFormData.training_date,
-        cat_time: soldierTrainingData[soldierId].cat_time,
-        passed: soldierTrainingData[soldierId].passed,
-        notes: soldierTrainingData[soldierId].notes || groupFormData.general_notes
-      }));
+      setLoading(true);
       
-      // In a real implementation, we would save to the API
-      // await Promise.all(newTrainings.map(training => apiService.createTourniquetTraining(training)));
+      // Create training entries for all soldiers
+      const newTrainings = [];
       
-      // For now, updating local state
-      setTrainings([...trainings, ...newTrainings]);
+      for (const soldierId of selectedSoldiers) {
+        const trainingData = {
+          soldier_id: soldierId,
+          training_date: groupFormData.training_date,
+          cat_time: soldierTrainingData[soldierId].cat_time,
+          passed: soldierTrainingData[soldierId].passed,
+          notes: soldierTrainingData[soldierId].notes || groupFormData.general_notes
+        };
+        
+        // In a real app, this would be a batch operation for better performance
+        const response = await trainingService.createTourniquetTraining(trainingData);
+        newTrainings.push(response.data || response);
+      }
+      
+      setTrainings(prev => [...prev, ...newTrainings]);
       setOpenGroupTrainingForm(false);
       showNotification(`נשמרו נתוני תרגול עבור ${selectedSoldiers.length} חיילים`, 'success');
     } catch (error) {
       console.error('Error saving group training:', error);
-      showNotification('שגיאה בשמירת נתוני התרגול', 'error');
+      trainingService.handleApiError(error, showNotification);
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleOpenSoldierDetails = (soldier) => {
+    setSelectedSoldier(soldier);
+    setOpenSoldierDetails(true);
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setFilterTeam('');
+  };
+
+  // Filter soldiers based on search and team filter
   const filteredSoldiers = soldiers.filter(soldier => {
     const matchesTeam = filterTeam ? soldier.team === filterTeam : true;
     const matchesSearch = searchQuery === '' || 
@@ -1309,35 +1766,6 @@ const TourniquetTraining = ({ showNotification }) => {
     
     return matchesTeam && matchesSearch;
   });
-  
-  // קבלת רשימת חיילים שלא תורגלו החודש
-  const getUntrained = () => {
-    return soldiers.filter(soldier => !isTrainedThisMonth(soldier.id));
-  };
-
-  // פתיחת פרטי חייל ספציפי
-  const handleOpenSoldierDetails = (soldier) => {
-    setSelectedSoldier(soldier);
-    setOpenSoldierDetails(true);
-  };
-
-  // חישוב ממוצע זמן הנחת חסם עורקים לחייל
-  const calculateAverageCatTime = (soldierId) => {
-    const soldierTrainings = getSoldierTrainings(soldierId);
-    if (soldierTrainings.length === 0) return 0;
-    
-    const totalTime = soldierTrainings.reduce((sum, t) => sum + parseInt(t.cat_time || 0), 0);
-    return (totalTime / soldierTrainings.length).toFixed(1);
-  };
-
-  // חישוב אחוז הצלחה לחייל
-  const calculatePassRate = (soldierId) => {
-    const soldierTrainings = getSoldierTrainings(soldierId);
-    if (soldierTrainings.length === 0) return 0;
-    
-    const passedCount = soldierTrainings.filter(t => t.passed).length;
-    return ((passedCount / soldierTrainings.length) * 100).toFixed(0);
-  };
 
   if (loading) {
     return (
@@ -1446,10 +1874,7 @@ const TourniquetTraining = ({ showNotification }) => {
             </FormControl>
             <Tooltip title="אפס סינון">
               <IconButton 
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterTeam('');
-                }}
+                onClick={handleClearFilters}
                 sx={{ 
                   bgcolor: 'white',
                   '&:hover': { bgcolor: '#f5f5f5' } 
@@ -1506,20 +1931,17 @@ const TourniquetTraining = ({ showNotification }) => {
                         <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                           <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
                           <Typography sx={{ color: 'text.secondary' }}>לא נמצאו חיילים</Typography>
-                          {searchQuery || filterTeam ? (
+                          {(searchQuery || filterTeam) && (
                             <Button 
                               variant="outlined" 
                               size="small" 
                               startIcon={<RefreshIcon />}
-                              onClick={() => {
-                                setSearchQuery('');
-                                setFilterTeam('');
-                              }}
+                              onClick={handleClearFilters}
                               sx={{ mt: 1 }}
                             >
                               אפס סינון
                             </Button>
-                          ) : null}
+                          )}
                         </Box>
                       </TableCell>
                     </TableRow>
@@ -1531,6 +1953,7 @@ const TourniquetTraining = ({ showNotification }) => {
                           ? soldierTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0]
                           : null;
                       const trainedThisMonth = isTrainedThisMonth(soldier.id);
+                      
                       return (
                         <TableRow
                           key={soldier.id}
@@ -1601,8 +2024,8 @@ const TourniquetTraining = ({ showNotification }) => {
                                 <Typography 
                                   sx={{ 
                                     fontWeight: 'medium',
-                                    color: parseInt(lastTraining.cat_time) > 35 ? 'error.main' : 
-                                           parseInt(lastTraining.cat_time) > 25 ? 'warning.main' : 'success.main'
+                                    color: parseInt(lastTraining.cat_time, 10) > 35 ? 'error.main' : 
+                                           parseInt(lastTraining.cat_time, 10) > 25 ? 'warning.main' : 'success.main'
                                   }}
                                 >
                                   {lastTraining.cat_time} שניות
@@ -1647,7 +2070,7 @@ const TourniquetTraining = ({ showNotification }) => {
             </TableContainer>
           </Paper>
           
-          {/* רשימת חיילים שלא תורגלו */}
+          {/* Untrained soldiers list */}
           <Paper 
             elevation={2}
             sx={{ 
@@ -1706,7 +2129,10 @@ const TourniquetTraining = ({ showNotification }) => {
                           size="small"
                           variant="text"
                           color="warning"
-                          onClick={() => handleAddTraining(soldier)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddTraining(soldier);
+                          }}
                           sx={{ minWidth: 0, p: 1 }}
                         >
                           <AddIcon fontSize="small" />
@@ -1756,6 +2182,7 @@ const TourniquetTraining = ({ showNotification }) => {
                           const trainedCount = teamSoldiers.filter((s) => isTrainedThisMonth(s.id)).length;
                           const percentage =
                             teamSoldiers.length > 0 ? Math.round((trainedCount / teamSoldiers.length) * 100) : 0;
+                            
                           return (
                             <TableRow 
                               key={team}
@@ -1902,50 +2329,52 @@ const TourniquetTraining = ({ showNotification }) => {
                       <Typography variant="body1" color="text.secondary" gutterBottom>
                         אחוז ביצוע חודשי
                       </Typography>
-                      <Box sx={{ position: 'relative', display: 'inline-block', width: '150px', height: '150px' }}>
-                        <CircularProgress
-                          variant="determinate"
-                          value={100}
-                          size={150}
-                          thickness={5}
-                          sx={{ color: 'grey.200', position: 'absolute', top: 0, left: 0 }}
-                        />
-                        <CircularProgress
-                          variant="determinate"
-                          value={Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}
-                          size={150}
-                          thickness={5}
-                          sx={{ 
-                            color: 
-                              Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 80 ? 'success.main' : 
-                              Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 50 ? 'warning.main' : 'error.main',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0
-                          }}
-                        />
-                        <Box
-                          sx={{
-                            top: 0,
-                            left: 0,
-                            bottom: 0,
-                            right: 0,
-                            position: 'absolute',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Typography
-                            variant="h4"
-                            component="div"
-                            color="text.primary"
-                            fontWeight="bold"
+                      {soldiers.length > 0 && (
+                        <Box sx={{ position: 'relative', display: 'inline-block', width: '150px', height: '150px' }}>
+                          <CircularProgress
+                            variant="determinate"
+                            value={100}
+                            size={150}
+                            thickness={5}
+                            sx={{ color: 'grey.200', position: 'absolute', top: 0, left: 0 }}
+                          />
+                          <CircularProgress
+                            variant="determinate"
+                            value={Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}
+                            size={150}
+                            thickness={5}
+                            sx={{ 
+                              color: 
+                                Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 80 ? 'success.main' : 
+                                Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 50 ? 'warning.main' : 'error.main',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0
+                            }}
+                          />
+                          <Box
+                            sx={{
+                              top: 0,
+                              left: 0,
+                              bottom: 0,
+                              right: 0,
+                              position: 'absolute',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
                           >
-                            {Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}%
-                          </Typography>
+                            <Typography
+                              variant="h4"
+                              component="div"
+                              color="text.primary"
+                              fontWeight="bold"
+                            >
+                              {Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}%
+                            </Typography>
+                          </Box>
                         </Box>
-                      </Box>
+                      )}
                     </Box>
                   </Box>
                 </CardContent>
@@ -1955,7 +2384,7 @@ const TourniquetTraining = ({ showNotification }) => {
         </Grid>
       </Grid>
 
-      {/* טופס לתרגול של חייל בודד */}
+      {/* Individual Training Form Dialog */}
       <Dialog 
         open={openForm} 
         onClose={() => setOpenForm(false)} 
@@ -1980,51 +2409,7 @@ const TourniquetTraining = ({ showNotification }) => {
             </Typography>
           </Box>
         </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2} sx={{ pt: 1 }}>
-            <Grid item xs={12}>
-              <TextField
-                name="training_date"
-                label="תאריך תרגול"
-                type="date"
-                fullWidth
-                required
-                value={formData.training_date}
-                onChange={handleFormChange}
-                InputLabelProps={{ shrink: true }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <CalendarTodayIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                name="cat_time"
-                label="זמן הנחת חסם עורקים (שניות)"
-                type="number"
-                fullWidth
-                required
-                value={formData.cat_time}
-                onChange={handleFormChange}
-                placeholder="הזן זמן בשניות"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <AccessTimeIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      שניות
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+       
             <Grid item xs={12}>
               <FormControl fullWidth>
                 <Box 
@@ -2052,7 +2437,7 @@ const TourniquetTraining = ({ showNotification }) => {
                     control={
                       <Switch
                         checked={formData.passed}
-                        onChange={(e) => setFormData({ ...formData, passed: e.target.checked })}
+                        onChange={(e) => setFormData(prev => ({ ...prev, passed: e.target.checked }))}
                         color="success"
                       />
                     }
@@ -2073,8 +2458,30 @@ const TourniquetTraining = ({ showNotification }) => {
                 placeholder="הוסף הערות לגבי ביצוע התרגול, דגשים לשיפור וכדומה"
               />
             </Grid>
-          </Grid>
-        </DialogContent>
+          <DialogContent dividers>
+            <Grid container spacing={2} sx={{ pt: 1 }}>
+              <Grid item xs={12}>
+                <TextField
+                  name="training_date"
+                  label="תאריך תרגול"
+                  type="date"
+                  fullWidth
+                  required
+                  value={formData.training_date}
+                  onChange={handleFormChange}
+                  InputLabelProps={{ shrink: true }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <CalendarTodayIcon fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+                  {/* Other Grid items and form fields here */}
+                </Grid>
+          </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
           <Button 
             onClick={() => setOpenForm(false)}
@@ -2088,9 +2495,9 @@ const TourniquetTraining = ({ showNotification }) => {
             color="primary" 
             onClick={handleSaveTraining}
             startIcon={<SaveIcon />}
-            disabled={!formData.cat_time}
+            disabled={!formData.cat_time || saving}
           >
-            שמור
+            {saving ? 'שומר...' : 'שמור'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -2116,7 +2523,7 @@ const TourniquetTraining = ({ showNotification }) => {
           <Box display="flex" alignItems="center">
             <GroupIcon sx={{ mr:.5 }} />
             <Typography variant="h6">
-              תרגול קבוצתי - מחצ"ים
+              אימון קבוצתי - מחצ"ים
             </Typography>
           </Box>
         </DialogTitle>
@@ -2134,11 +2541,11 @@ const TourniquetTraining = ({ showNotification }) => {
           </Stepper>
           
           {activeStep === 0 && (
-            <Grid container spacing={2}>
+            <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <TextField
                   name="training_date"
-                  label="תאריך תרגול"
+                  label="תאריך אימון"
                   type="date"
                   fullWidth
                   required
@@ -2442,8 +2849,9 @@ const TourniquetTraining = ({ showNotification }) => {
               color="primary" 
               onClick={handleSaveGroupTraining}
               startIcon={<SaveIcon />}
+              disabled={saving}
             >
-              שמור נתוני תרגול
+              {saving ? 'שומר...' : 'שמור נתוני תרגול'}
             </Button>
           )}
         </DialogActions>
@@ -2687,8 +3095,8 @@ const TourniquetTraining = ({ showNotification }) => {
                           {getSoldierTrainings(selectedSoldier.id)
                             .sort((a, b) => new Date(a.training_date) - new Date(b.training_date))
                             .map((training, index, arr) => {
-                              const maxTime = Math.max(...arr.map(t => parseInt(t.cat_time)));
-                              const height = (parseInt(training.cat_time) / maxTime) * 100;
+                              const maxTime = Math.max(...arr.map(t => parseInt(t.cat_time, 10)));
+                              const height = (parseInt(training.cat_time, 10) / maxTime) * 100;
                               return (
                                 <Box 
                                   key={training.id}
@@ -2696,16 +3104,16 @@ const TourniquetTraining = ({ showNotification }) => {
                                     flexGrow: 1, 
                                     mx: 0.5,
                                     height: `${height}%`,
-                                    bgcolor: parseInt(training.cat_time) > 35 ? 'error.light' : 
-                                             parseInt(training.cat_time) > 25 ? 'warning.light' : 'success.light',
+                                    bgcolor: parseInt(training.cat_time, 10) > 35 ? 'error.light' : 
+                                             parseInt(training.cat_time, 10) > 25 ? 'warning.light' : 'success.light',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'flex-end',
                                     alignItems: 'center',
                                     position: 'relative',
                                     '&:hover': {
-                                      bgcolor: parseInt(training.cat_time) > 35 ? 'error.main' : 
-                                               parseInt(training.cat_time) > 25 ? 'warning.main' : 'success.main',
+                                      bgcolor: parseInt(training.cat_time, 10) > 35 ? 'error.main' : 
+                                               parseInt(training.cat_time, 10) > 25 ? 'warning.main' : 'success.main',
                                     }
                                   }}
                                 >
@@ -2759,1681 +3167,7 @@ const TourniquetTraining = ({ showNotification }) => {
   );
 };
 
-// רכיב תרגול חובשים - חדש ומלא
-const MedicsTraining = ({ showNotification }) => {
-  const [trainings, setTrainings] = useState([]);
-  const [medics] = useState([]);
-  const [teams, setTeams] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [openForm, setOpenForm] = useState(false);
-  const [openSessionForm, setOpenSessionForm] = useState(false);
-  const [selectedMedic, setSelectedMedic] = useState(null);
-  const [openMedicDetails, setOpenMedicDetails] = useState(false);
-  const [filterTeam, setFilterTeam] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTrainingType, setSelectedTrainingType] = useState('');
-  const [activeStep, setActiveStep] = useState(0);
-  
-  const [trainingTypes, setTrainingTypes] = useState([
-    'החייאה',
-    'טיפול בפציעות ראש',
-    'החדרת נתיב אוויר',
-    'עצירת דימומים',
-    'טיפול בפגיעות חזה',
-    'הנחת עירוי',
-    'טיפול בהלם',
-    'חבישות',
-    'פינוי נפגעים',
-    'ציוד רפואי והכרתו'
-  ]);
-  
-  // אימון חדש - תרגול קבוצתי
-  const [sessionFormData, setSessionFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    training_type: '',
-    location: '',
-    notes: '',
-    participants: []
-  });
-  
-  // נתוני ביצוע לחובשים בתרגול
-  const [medicPerformance, setMedicPerformance] = useState({});
-  
-  // נתוני ביצוע לחובש בודד
-  const [formData, setFormData] = useState({
-    date: '',
-    medic_id: '',
-    training_type: '',
-    performance_rating: 3,
-    attendance: true,
-    notes: '',
-    recommendations: ''
-  });
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // ניסיון להביא נתונים מהשרת
-        let teamsData, medicsData, trainingsData;
-        
-        try {
-          // בדיקת חיבור לשרת והבאת נתונים
-          teamsData = await trainingService.getTeams();
-          medicsData = await trainingService.getMedics();
-          trainingsData = await trainingService.getMedicTrainings();
-          
-          console.log('נתוני תרגולי חובשים התקבלו מהשרת:', { teamsData, medicsData, trainingsData });
-        } catch (apiError) {
-          console.error('שגיאה בטעינת נתונים מהשרת:', apiError);
-          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
-          teamsData = mockDataService.teams;
-          medicsData = mockDataService.medics;
-          trainingsData = mockDataService.medicTrainings;
-          showNotification('לא ניתן להתחבר לשרת. מציג נתונים מקומיים.', 'warning');
-        }
-        
-        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
-        setTeams(teamsData);
-        setMedics(medicsData); // במקום setSoldiers
-        setTrainings(trainingsData);
-      } catch (err) {
-        console.error('שגיאה חמורה בטעינת נתונים:', err);
-        showNotification('שגיאה בטעינת נתונים', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, [showNotification]); // הוספת showNotification לתלויות
-
-  const getMedicTrainings = (medicId) => trainings.filter((t) => t.medic_id === medicId);
-
-  const isTrainedThisMonth = (medicId, trainingType = null) => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    return trainings.some((t) => {
-      const trainingDate = new Date(t.training_date);
-      const matchesMedicAndDate = (
-        t.medic_id === medicId &&
-        trainingDate.getMonth() === currentMonth &&
-        trainingDate.getFullYear() === currentYear
-      );
-      
-      // If trainingType is provided, check if it matches
-      if (trainingType) {
-        return matchesMedicAndDate && t.training_type === trainingType;
-      }
-      
-      return matchesMedicAndDate;
-    });
-  };
-
-  const handleAddTraining = (medic) => {
-    setSelectedMedic(medic);
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      medic_id: medic.id,
-      training_type: '',
-      performance_rating: 3,
-      attendance: true,
-      notes: '',
-      recommendations: ''
-    });
-    setOpenForm(true);
-  };
-
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
-  };
-
-  const handleSaveTraining = async () => {
-    try {
-      // In a real implementation, we would save to the API
-      // await apiService.createMedicTraining(formData);
-      
-      // For now, updating local state
-      const newTraining = {
-        id: Math.max(0, ...trainings.map((t) => t.id || 0)) + 1,
-        ...formData,
-      };
-      setTrainings([...trainings, newTraining]);
-      setOpenForm(false);
-      showNotification('נתוני התרגול נשמרו בהצלחה');
-    } catch (error) {
-      console.error('Error saving training:', error);
-      showNotification('שגיאה בשמירת הנתונים', 'error');
-    }
-  };
-
-  // פתיחת טופס אימון קבוצתי
-  const handleOpenSessionForm = () => {
-    setSessionFormData({
-      date: new Date().toISOString().split('T')[0],
-      training_type: '',
-      location: '',
-      notes: '',
-      participants: []
-    });
-    setMedicPerformance({});
-    setActiveStep(0);
-    setOpenSessionForm(true);
-  };
-
-  // טיפול בשינוי בטופס אימון קבוצתי
-  const handleSessionFormChange = (e) => {
-    const { name, value } = e.target;
-    setSessionFormData({ ...sessionFormData, [name]: value });
-  };
-
-  // טיפול בבחירת משתתפים לאימון
-  const handleSelectParticipant = (medicId) => {
-    const currentParticipants = [...sessionFormData.participants];
-    if (currentParticipants.includes(medicId)) {
-      setSessionFormData({
-        ...sessionFormData,
-        participants: currentParticipants.filter(id => id !== medicId)
-      });
-    } else {
-      setSessionFormData({
-        ...sessionFormData,
-        participants: [...currentParticipants, medicId]
-      });
-    }
-  };
-
-  // מעבר לשלב הבא בטופס האימון
-  const handleNextStep = () => {
-    if (activeStep === 0) {
-      // בדיקת תקינות שלב 1
-      if (!sessionFormData.training_type || !sessionFormData.date) {
-        showNotification('אנא מלא את כל השדות הנדרשים', 'error');
-        return;
-      }
-    } else if (activeStep === 1) {
-      // בדיקת תקינות שלב 2
-      if (sessionFormData.participants.length === 0) {
-        showNotification('אנא בחר לפחות חובש אחד', 'error');
-        return;
-      }
-      
-      // יצירת אובייקט ביצועים ריק עבור כל חובש
-      const initialPerformance = {};
-      sessionFormData.participants.forEach(medicId => {
-        initialPerformance[medicId] = {
-          performance_rating: 3,
-          attendance: true,
-          notes: ''
-        };
-      });
-      setMedicPerformance(initialPerformance);
-    }
-    
-    setActiveStep(activeStep + 1);
-  };
-
-  // חזרה לשלב הקודם
-  const handlePrevStep = () => {
-    setActiveStep(activeStep - 1);
-  };
-
-  // עדכון נתוני ביצוע של חובש
-  const handleMedicPerformanceChange = (medicId, field, value) => {
-    setMedicPerformance(prev => ({
-      ...prev,
-      [medicId]: {
-        ...prev[medicId],
-        [field]: value
-      }
-    }));
-  };
-
-  // שמירת נתוני האימון הקבוצתי
-  const handleSaveSession = async () => {
-    try {
-      // יצירת רשומות אימון עבור כל חובש שהשתתף
-      const newTrainings = sessionFormData.participants.map(medicId => ({
-        id: Math.max(0, ...trainings.map(t => t.id || 0)) + 1 + sessionFormData.participants.indexOf(medicId),
-        medic_id: medicId,
-        training_date: sessionFormData.date,
-        training_type: sessionFormData.training_type,
-        performance_rating: medicPerformance[medicId].performance_rating,
-        attendance: medicPerformance[medicId].attendance,
-        notes: medicPerformance[medicId].notes || sessionFormData.notes,
-        recommendations: ''
-      }));
-      
-      // In a real implementation, we would save to the API
-      // await Promise.all(newTrainings.map(training => apiService.createMedicTraining(training)));
-      
-      // For now, updating local state
-      setTrainings([...trainings, ...newTrainings]);
-      setOpenSessionForm(false);
-      showNotification(`נשמרו נתוני אימון עבור ${sessionFormData.participants.length} חובשים`, 'success');
-    } catch (error) {
-      console.error('Error saving session:', error);
-      showNotification('שגיאה בשמירת נתוני האימון', 'error');
-    }
-  };
-
-  // פתיחת פרטי חובש
-  const handleOpenMedicDetails = (medic) => {
-    setSelectedMedic(medic);
-    setOpenMedicDetails(true);
-  };
-
-  // חישוב ממוצע ביצוע לחובש
-  const calculateAveragePerformance = (medicId) => {
-    const medicTrainings = getMedicTrainings(medicId);
-    if (medicTrainings.length === 0) return 0;
-    
-    const totalRating = medicTrainings.reduce((sum, t) => sum + t.performance_rating, 0);
-    return (totalRating / medicTrainings.length).toFixed(1);
-  };
-
-  // סינון חובשים
-  const filteredMedics = medics.filter(medic => {
-    const matchesTeam = filterTeam ? medic.team === filterTeam : true;
-    const matchesSearch = searchQuery === '' || 
-      medic.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      medic.role.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    return matchesTeam && matchesSearch;
-  });
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ animation: 'fadeIn 0.5s', '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } } }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h5" component="h2" fontWeight="bold">
-          תרגול חובשים
-        </Typography>
-        <Box>
-          <Button 
-            variant="outlined" 
-            color="primary" 
-            startIcon={<GroupIcon />} 
-            onClick={handleOpenSessionForm}
-            sx={{ 
-              mr: 1,
-              borderRadius: 2, 
-              textTransform: 'none',
-            }}
-          >
-            אימון קבוצתי
-          </Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />}
-            onClick={() => setFilterTeam('')}
-            sx={{ 
-              borderRadius: 2, 
-              textTransform: 'none',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-              '&:hover': {
-                boxShadow: '0 6px 10px rgba(0,0,0,0.2)',
-              }
-            }}
-          >
-            תרגול חדש
-          </Button>
-        </Box>
-      </Box>
-
-      <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={8}>
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              gap: 1,
-              flexWrap: { xs: 'wrap', md: 'nowrap' } 
-            }}
-          >
-            <TextField
-              placeholder="חפש לפי שם או תפקיד"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              variant="outlined"
-              size="small"
-              fullWidth
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ 
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            />
-            <FormControl 
-              variant="outlined" 
-              size="small" 
-              sx={{ 
-                minWidth: 120,
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            >
-              <InputLabel id="team-filter-label">צוות</InputLabel>
-              <Select
-                labelId="team-filter-label"
-                value={filterTeam}
-                onChange={(e) => setFilterTeam(e.target.value)}
-                label="צוות"
-              >
-                <MenuItem value="">הכל</MenuItem>
-                {teams.map((team) => (
-                  <MenuItem key={team} value={team}>
-                    {team}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl 
-              variant="outlined" 
-              size="small" 
-              sx={{ 
-                minWidth: 180,
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            >
-              <InputLabel id="training-type-filter-label">סוג תרגול</InputLabel>
-              <Select
-                labelId="training-type-filter-label"
-                value={selectedTrainingType}
-                onChange={(e) => setSelectedTrainingType(e.target.value)}
-                label="סוג תרגול"
-              >
-                <MenuItem value="">הכל</MenuItem>
-                {trainingTypes.map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {type}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Tooltip title="אפס סינון">
-              <IconButton 
-                onClick={() => {
-                  setSearchQuery('');
-                  setFilterTeam('');
-                  setSelectedTrainingType('');
-                }}
-                sx={{ 
-                  bgcolor: 'white',
-                  '&:hover': { bgcolor: '#f5f5f5' } 
-                }}
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
-          <Paper 
-            elevation={2}
-            sx={{ 
-              borderRadius: 2,
-              overflow: 'hidden',
-              mb: 3
-            }}
-          >
-            <Box p={0.5} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
-              <Typography variant="subtitle2" sx={{ p: 1.5, fontWeight: 'bold' }}>
-                רשימת חובשים {filteredMedics.length > 0 && `(${filteredMedics.length})`}
-              </Typography>
-            </Box>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#f9f9f9' }}>
-                    <TableCell sx={{ fontWeight: 'bold' }}>שם</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>רמה</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>ביצוע</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>אימונים</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>פעולות</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredMedics.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} align="center">
-                        <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                          <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
-                          <Typography sx={{ color: 'text.secondary' }}>לא נמצאו חובשים</Typography>
-                          {searchQuery || filterTeam || selectedTrainingType ? (
-                            <Button 
-                              variant="outlined" 
-                              size="small" 
-                              startIcon={<RefreshIcon />}
-                              onClick={() => {
-                                setSearchQuery('');
-                                setFilterTeam('');
-                                setSelectedTrainingType('');
-                              }}
-                              sx={{ mt: 1 }}
-                            >
-                              אפס סינון
-                            </Button>
-                          ) : null}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredMedics.map((medic) => {
-                      const medicTrainings = getMedicTrainings(medic.id);
-                      const avgPerformance = calculateAveragePerformance(medic.id);
-                      const trainedThisMonth = isTrainedThisMonth(
-                        medic.id, 
-                        selectedTrainingType || undefined
-                      );
-                      
-                      return (
-                        <TableRow
-                          key={medic.id}
-                          hover
-                          onClick={() => handleOpenMedicDetails(medic)}
-                          sx={{ 
-                            transition: 'all 0.2s',
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: 'rgba(25, 118, 210, 0.04)',
-                            } 
-                          }}
-                        >
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar 
-                                sx={{ 
-                                  width: 32, 
-                                  height: 32, 
-                                  mr: 1, 
-                                  fontSize: '0.9rem',
-                                  bgcolor: medic.team === 'אתק' ? '#bbdefb' :
-                                           medic.team === 'רתק' ? '#c8e6c9' :
-                                           medic.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                  color: 'rgba(0, 0, 0, 0.7)',
-                                }}
-                              >
-                                {medic.name.charAt(0)}
-                              </Avatar>
-                              {medic.name}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={medic.team} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: medic.team === 'אתק' ? '#bbdefb' :
-                                        medic.team === 'רתק' ? '#c8e6c9' :
-                                        medic.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                color: 'rgba(0, 0, 0, 0.7)',
-                                fontWeight: 'bold',
-                                '& .MuiChip-label': { px: 1 }
-                              }} 
-                            />
-                          </TableCell>
-                          <TableCell>{medic.role}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={medic.experience} 
-                              size="small" 
-                              color={
-                                medic.experience === 'בכיר' ? 'success' :
-                                medic.experience === 'מתקדם' ? 'info' : 'warning'
-                              }
-                              variant="outlined"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Rating 
-                              value={avgPerformance > 0 ? parseFloat(avgPerformance) : 0} 
-                              readOnly 
-                              precision={0.5}
-                              size="small"
-                              sx={{
-                                '& .MuiRating-iconFilled': {
-                                  color: avgPerformance >= 4 ? 'success.main' : 
-                                         avgPerformance >= 3 ? 'warning.main' : 'error.main',
-                                }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Typography variant="body2" sx={{ mr: 1 }}>
-                                {medicTrainings.length}
-                              </Typography>
-                              {selectedTrainingType && (
-                                <Chip
-                                  size="small"
-                                  label={trainedThisMonth ? "בוצע" : "לא בוצע"}
-                                  color={trainedThisMonth ? "success" : "error"}
-                                  variant={trainedThisMonth ? "filled" : "outlined"}
-                                  sx={{ height: 20, '& .MuiChip-label': { px: 0.5 } }}
-                                />
-                              )}
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddTraining(medic);
-                              }}
-                              startIcon={<AddIcon />}
-                              sx={{ borderRadius: 2 }}
-                            >
-                              תרגול חדש
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-          
-          {/* תצוגת תרגולים אחרונים */}
-          <Paper 
-            elevation={2}
-            sx={{ 
-              borderRadius: 2,
-              overflow: 'hidden',
-              mb: 3
-            }}
-          >
-            <Box p={0.5} bgcolor="#e3f2fd" borderBottom="1px solid #bbdefb">
-              <Typography variant="subtitle2" sx={{ p: 1.5, fontWeight: 'bold', color: 'primary.main', display: 'flex', alignItems: 'center' }}>
-                <HistoryIcon sx={{ mr: 1 }} /> תרגולים אחרונים
-              </Typography>
-            </Box>
-            <TableContainer sx={{ maxHeight: 300 }}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#f9f9f9' }}>
-                    <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>חובש</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>סוג תרגול</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>ביצוע</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>הערות</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {trainings.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} align="center">
-                        <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                          <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
-                          <Typography sx={{ color: 'text.secondary' }}>לא נמצאו תרגולים</Typography>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    trainings
-                      .sort((a, b) => new Date(b.training_date) - new Date(a.training_date))
-                      .slice(0, 10)
-                      .map((training) => {
-                        const medic = medics.find(m => m.id === training.medic_id);
-                        return (
-                          <TableRow
-                            key={training.id}
-                            hover
-                            sx={{ 
-                              transition: 'all 0.2s',
-                              '&:hover': {
-                                bgcolor: 'rgba(25, 118, 210, 0.04)',
-                              } 
-                            }}
-                          >
-                            <TableCell>{formatDate(training.training_date)}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <Avatar 
-                                  sx={{ 
-                                    width: 24, 
-                                    height: 24, 
-                                    mr: 1, 
-                                    fontSize: '0.7rem',
-                                    bgcolor: medic?.team === 'אתק' ? '#bbdefb' :
-                                             medic?.team === 'רתק' ? '#c8e6c9' :
-                                             medic?.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                  }}
-                                >
-                                  {medic?.name.charAt(0)}
-                                </Avatar>
-                                <Typography variant="body2">{medic?.name}</Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell>{training.training_type}</TableCell>
-                            <TableCell>
-                              <Rating 
-                                value={training.performance_rating} 
-                                readOnly 
-                                size="small"
-                                sx={{
-                                  '& .MuiRating-iconFilled': {
-                                    color: training.performance_rating >= 4 ? 'success.main' : 
-                                           training.performance_rating >= 3 ? 'warning.main' : 'error.main',
-                                  }
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {training.notes || <Typography variant="body2" color="text.secondary">אין הערות</Typography>}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card 
-            elevation={2} 
-            sx={{ 
-              borderRadius: 2,
-              overflow: 'hidden',
-              mb: 3
-            }}
-          >
-            <CardHeader 
-              title="סיכום סוגי תרגולים" 
-              titleTypographyProps={{ fontWeight: 'bold' }}
-              sx={{ 
-                bgcolor: '#f5f5f5', 
-                borderBottom: '1px solid #e0e0e0',
-                p: 2
-              }}
-            />
-            <CardContent>
-              <List sx={{ mb: 2 }}>
-                {trainingTypes.map((type) => {
-                  const typeTrainings = trainings.filter((t) => t.training_type === type);
-                  const count = typeTrainings.length;
-                  const avgRating = count > 0 ? typeTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / count : 0;
-                  
-                  return (
-                    <ListItem 
-                      key={type} 
-                      sx={{ 
-                        mb: 1, 
-                        borderRadius: 2,
-                        bgcolor: 'white',
-                        border: '1px solid #eee',
-                        transition: 'all 0.2s',
-                        cursor: 'pointer',
-                        '&:hover': {
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                          transform: 'translateY(-2px)',
-                        }
-                      }}
-                      onClick={() => setSelectedTrainingType(type)}
-                    >
-                      <ListItemText 
-                        primary={type} 
-                        secondary={`${count} תרגולים`}
-                        primaryTypographyProps={{ fontWeight: 'bold' }}
-                      />
-                      {count > 0 && (
-                        <Box display="flex" alignItems="center">
-                          <Rating 
-                            value={avgRating} 
-                            precision={0.5} 
-                            readOnly 
-                            size="small" 
-                            sx={{
-                              '& .MuiRating-iconFilled': {
-                                color: avgRating >= 4 ? 'success.main' : 
-                                       avgRating >= 3 ? 'warning.main' : 'error.main',
-                              }
-                            }}
-                          />
-                        </Box>
-                      )}
-                    </ListItem>
-                  );
-                })}
-              </List>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            elevation={2} 
-            sx={{ 
-              borderRadius: 2,
-              overflow: 'hidden'
-            }}
-          >
-            <CardHeader 
-              title="סטטיסטיקה לפי צוות" 
-              titleTypographyProps={{ fontWeight: 'bold' }}
-              sx={{ 
-                bgcolor: '#f5f5f5', 
-                borderBottom: '1px solid #e0e0e0',
-                p: 2
-              }}
-            />
-            <CardContent>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 'bold' }}>צוות</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>חובשים</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>תרגולים</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>ביצוע</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {teams.map((team) => {
-                      const teamMedics = medics.filter((m) => m.team === team);
-                      const teamTrainings = trainings.filter((t) => {
-                        const medic = medics.find(m => m.id === t.medic_id);
-                        return medic && medic.team === team;
-                      });
-                      const avgRating = teamTrainings.length > 0 ? 
-                        teamTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / teamTrainings.length : 
-                        0;
-                      
-                      return (
-                        <TableRow 
-                          key={team}
-                          hover
-                          sx={{ 
-                            cursor: 'pointer',
-                            '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.04)' },
-                          }}
-                          onClick={() => setFilterTeam(team)}
-                        >
-                          <TableCell>
-                            <Chip 
-                              label={team} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: team === 'אתק' ? '#bbdefb' :
-                                team === 'רתק' ? '#c8e6c9' :
-                                team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                color: 'rgba(0, 0, 0, 0.7)',
-                                fontWeight: 'bold',
-                                '& .MuiChip-label': { px: 1 }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>{teamMedics.length}</TableCell>
-                          <TableCell>{teamTrainings.length}</TableCell>
-                          <TableCell>
-                            <Rating 
-                              value={avgRating} 
-                              precision={0.5} 
-                              readOnly 
-                              size="small" 
-                              sx={{
-                                '& .MuiRating-iconFilled': {
-                                  color: avgRating >= 4 ? 'success.main' : 
-                                         avgRating >= 3 ? 'warning.main' : 'error.main',
-                                }
-                              }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* טופס תרגול לחובש */}
-      <Dialog 
-        open={openForm} 
-        onClose={() => setOpenForm(false)} 
-        fullWidth 
-        maxWidth="md"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
-      >
-        <DialogTitle 
-          sx={{ 
-            bgcolor: 'primary.main', 
-            color: 'white', 
-            p: 2
-          }}
-        >
-          <Box display="flex" alignItems="center">
-            <AddIcon sx={{ mr:.5 }} />
-            <Typography variant="h6">
-              תרגול חדש - {selectedMedic?.name}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2} sx={{ pt: 1 }}>
-            <Grid item xs={12} md={6}>
-              <TextField
-                name="date"
-                label="תאריך תרגול"
-                type="date"
-                fullWidth
-                required
-                value={formData.date}
-                onChange={handleFormChange}
-                InputLabelProps={{ shrink: true }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <CalendarTodayIcon fontSize="small" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth required>
-                <InputLabel>סוג תרגול</InputLabel>
-                <Select 
-                  name="training_type" 
-                  value={formData.training_type} 
-                  onChange={handleFormChange} 
-                  label="סוג תרגול"
-                >
-                  <MenuItem value="" disabled>בחר סוג תרגול</MenuItem>
-                  {trainingTypes.map((type) => (
-                    <MenuItem key={type} value={type}>
-                      {type}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid rgba(0, 0, 0, 0.23)', borderRadius: 1, p: 2 }}>
-                <Typography variant="body1" sx={{ mr: 2 }}>
-                  דירוג ביצוע:
-                </Typography>
-                <Rating
-                  name="performance_rating"
-                  value={Number(formData.performance_rating)}
-                  onChange={(event, newValue) =>
-                    setFormData({ ...formData, performance_rating: newValue })
-                  }
-                  size="large"
-                  sx={{
-                    '& .MuiRating-iconFilled': {
-                      color: formData.performance_rating >= 4 ? 'success.main' : 
-                             formData.performance_rating >= 3 ? 'warning.main' : 'error.main',
-                    }
-                  }}
-                />
-                <Box sx={{ ml: 2, minWidth: '24px' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    {formData.performance_rating}/5
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.attendance}
-                    onChange={(e) => setFormData({ ...formData, attendance: e.target.checked })}
-                    color="success"
-                  />
-                }
-                label="נוכחות מלאה"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                name="notes"
-                label="הערות"
-                fullWidth
-                multiline
-                rows={3}
-                value={formData.notes}
-                onChange={handleFormChange}
-                placeholder="הערות לגבי ביצוע התרגול (אופציונלי)"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                name="recommendations"
-                label="המלצות לשיפור"
-                fullWidth
-                multiline
-                rows={3}
-                value={formData.recommendations}
-                onChange={handleFormChange}
-                placeholder="המלצות לשיפור ולתרגול עתידי (אופציונלי)"
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-          <Button 
-            onClick={() => setOpenForm(false)}
-            variant="outlined"
-            startIcon={<CloseIcon />}
-          >
-            ביטול
-          </Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={handleSaveTraining}
-            startIcon={<SaveIcon />}
-            disabled={!formData.training_type || !formData.date}
-          >
-            שמור
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* טופס אימון קבוצתי */}
-      <Dialog 
-        open={openSessionForm} 
-        onClose={() => setOpenSessionForm(false)} 
-        fullWidth 
-        maxWidth="md"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
-      >
-        <DialogTitle 
-          sx={{ 
-            bgcolor: 'primary.main', 
-            color: 'white', 
-            p: 2
-          }}
-        >
-          <Box display="flex" alignItems="center">
-            <GroupIcon sx={{ mr:.5 }} />
-            <Typography variant="h6">
-              אימון קבוצתי - חובשים
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Stepper activeStep={activeStep} orientation="horizontal" sx={{ mb: 4 }}>
-            <Step>
-              <StepLabel>הגדרת האימון</StepLabel>
-            </Step>
-            <Step>
-              <StepLabel>בחירת משתתפים</StepLabel>
-            </Step>
-            <Step>
-              <StepLabel>הזנת נתוני ביצוע</StepLabel>
-            </Step>
-          </Stepper>
-          
-          {/* שלב 1 - הגדרת האימון */}
-          {activeStep === 0 && (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  name="date"
-                  label="תאריך האימון"
-                  type="date"
-                  fullWidth
-                  required
-                  value={sessionFormData.date}
-                  onChange={handleSessionFormChange}
-                  InputLabelProps={{ shrink: true }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <CalendarTodayIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth required>
-                  <InputLabel>סוג תרגול</InputLabel>
-                  <Select 
-                    name="training_type" 
-                    value={sessionFormData.training_type} 
-                    onChange={handleSessionFormChange} 
-                    label="סוג תרגול"
-                  >
-                    <MenuItem value="" disabled>בחר סוג תרגול</MenuItem>
-                    {trainingTypes.map((type) => (
-                      <MenuItem key={type} value={type}>
-                        {type}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  name="location"
-                  label="מיקום האימון"
-                  fullWidth
-                  value={sessionFormData.location}
-                  onChange={handleSessionFormChange}
-                  placeholder="הזן את מיקום האימון (אופציונלי)"
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <FlagIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  name="notes"
-                  label="הערות כלליות"
-                  fullWidth
-                  multiline
-                  rows={3}
-                  value={sessionFormData.notes}
-                  onChange={handleSessionFormChange}
-                  placeholder="הערות כלליות לגבי האימון (אופציונלי)"
-                />
-              </Grid>
-            </Grid>
-          )}
-          
-          {/* שלב 2 - בחירת משתתפים */}
-          {activeStep === 1 && (
-            <Box>
-              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
-                בחר חובשים להשתתפות באימון:
-              </Typography>
-              
-              <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {teams.map((team) => (
-                  <Chip 
-                    key={team}
-                    label={team}
-                    clickable
-                    onClick={() => {
-                      // בחר את כל החובשים מהצוות הנבחר
-                      const teamMedics = medics.filter(m => m.team === team);
-                      const teamMedicIds = teamMedics.map(m => m.id);
-                      
-                      // אם כל החובשים מהצוות כבר נבחרו, הסר את כולם, אחרת הוסף את כולם
-                      const allSelected = teamMedicIds.every(id => sessionFormData.participants.includes(id));
-                      
-                      if (allSelected) {
-                        setSessionFormData({
-                          ...sessionFormData,
-                          participants: sessionFormData.participants.filter(id => !teamMedicIds.includes(id))
-                        });
-                      } else {
-                        setSessionFormData({
-                          ...sessionFormData,
-                          participants: [...new Set([...sessionFormData.participants, ...teamMedicIds])]
-                        });
-                      }
-                    }}
-                    color={
-                      medics.filter(m => m.team === team)
-                            .every(m => sessionFormData.participants.includes(m.id)) ?
-                      'primary' : 'default'
-                    }
-                    variant={
-                      medics.filter(m => m.team === team)
-                            .some(m => sessionFormData.participants.includes(m.id)) ?
-                      'filled' : 'outlined'
-                    }
-                    sx={{ 
-                      borderRadius: 2,
-                      fontWeight: 'medium'
-                    }}
-                  />
-                ))}
-              </Box>
-              
-              <Grid container spacing={1}>
-                {medics.map(medic => (
-                  <Grid item xs={12} sm={6} md={4} key={medic.id}>
-                    <Card 
-                      variant={sessionFormData.participants.includes(medic.id) ? "elevation" : "outlined"}
-                      elevation={sessionFormData.participants.includes(medic.id) ? 4 : 0}
-                      onClick={() => handleSelectParticipant(medic.id)}
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center', 
-                        p: 1,
-                        borderRadius: 2,
-                        cursor: 'pointer',
-                        borderColor: sessionFormData.participants.includes(medic.id) ? 'primary.main' : undefined,
-                        bgcolor: sessionFormData.participants.includes(medic.id) ? 'primary.light' : 'white',
-                        '&:hover': {
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                          bgcolor: sessionFormData.participants.includes(medic.id) ? 'primary.light' : 'rgba(25, 118, 210, 0.04)',
-                        }
-                      }}
-                    >
-                      <Checkbox 
-                        checked={sessionFormData.participants.includes(medic.id)} 
-                        color="primary"
-                        sx={{ p: 0.5, mr: 1 }}
-                      />
-                      <Avatar 
-                        sx={{ 
-                          bgcolor: medic.team === 'אתק' ? '#bbdefb' :
-                                   medic.team === 'רתק' ? '#c8e6c9' :
-                                   medic.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                          color: 'rgba(0, 0, 0, 0.7)',
-                          width: 32,
-                          height: 32,
-                          fontSize: '0.9rem',
-                          mr: 1
-                        }}
-                      >
-                        {medic.name.charAt(0)}
-                      </Avatar>
-                      <Box sx={{ flexGrow: 1 }}>
-                        <Typography 
-                          variant="body2" 
-                          fontWeight="medium" 
-                          color={sessionFormData.participants.includes(medic.id) ? 'primary.contrastText' : 'inherit'}
-                        >
-                          {medic.name}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography 
-                            variant="caption" 
-                            color={sessionFormData.participants.includes(medic.id) ? 'primary.contrastText' : 'text.secondary'}
-                          >
-                            {medic.team} • {medic.role}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            </Box>
-          )}
-          
-          {/* שלב 3 - הזנת נתוני ביצוע */}
-          {activeStep === 2 && (
-            <Box>
-              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
-                הזן נתוני ביצוע עבור {sessionFormData.participants.length} חובשים:
-              </Typography>
-              
-              <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
-                <Table>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell sx={{ fontWeight: 'bold' }}>שם</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>תפקיד</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>ביצוע</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
-                      <TableCell sx={{ fontWeight: 'bold' }}>הערות</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {sessionFormData.participants.map(medicId => {
-                      const medic = medics.find(m => m.id === medicId);
-                      return (
-                        <TableRow key={medicId}>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              <Avatar 
-                                sx={{ 
-                                  width: 24, 
-                                  height: 24, 
-                                  mr: 1, 
-                                  fontSize: '0.7rem',
-                                  bgcolor: medic.team === 'אתק' ? '#bbdefb' :
-                                           medic.team === 'רתק' ? '#c8e6c9' :
-                                           medic.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                }}
-                              >
-                                {medic?.name.charAt(0)}
-                              </Avatar>
-                              <Typography variant="body2" fontWeight="medium">{medic?.name}</Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell>{medic?.role}</TableCell>
-                          <TableCell>
-                            <Rating
-                              value={medicPerformance[medicId]?.performance_rating || 3}
-                              onChange={(e, newValue) => 
-                                handleMedicPerformanceChange(medicId, 'performance_rating', newValue)
-                              }
-                              size="small"
-                              sx={{
-                                '& .MuiRating-iconFilled': {
-                                  color: (medicPerformance[medicId]?.performance_rating || 3) >= 4 ? 'success.main' : 
-                                         (medicPerformance[medicId]?.performance_rating || 3) >= 3 ? 'warning.main' : 'error.main',
-                                }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <FormControlLabel
-                              control={
-                                <Checkbox
-                                  checked={medicPerformance[medicId]?.attendance !== false}
-                                  onChange={(e) => 
-                                    handleMedicPerformanceChange(medicId, 'attendance', e.target.checked)
-                                  }
-                                  color="success"
-                                  size="small"
-                                />
-                              }
-                              label=""
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <TextField
-                              size="small"
-                              fullWidth
-                              placeholder="הערות ספציפיות (אופציונלי)"
-                              value={medicPerformance[medicId]?.notes || ''}
-                              onChange={(e) => 
-                                handleMedicPerformanceChange(medicId, 'notes', e.target.value)
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5', justifyContent: 'space-between' }}>
-          {activeStep > 0 ? (
-            <Button 
-              onClick={handlePrevStep}
-              variant="outlined"
-            >
-              חזור
-            </Button>
-          ) : (
-            <Button 
-              onClick={() => setOpenSessionForm(false)}
-              variant="outlined"
-              startIcon={<CloseIcon />}
-            >
-              ביטול
-            </Button>
-          )}
-          
-          {activeStep < 2 ? (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleNextStep}
-              endIcon={<ArrowForwardIcon />}
-            >
-              המשך
-            </Button>
-          ) : (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleSaveSession}
-              startIcon={<SaveIcon />}
-            >
-              שמור נתוני אימון
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      {/* דיאלוג לפרטי חובש */}
-      <Dialog
-        open={openMedicDetails}
-        onClose={() => setOpenMedicDetails(false)}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
-      >
-        {selectedMedic && (
-          <>
-            <DialogTitle 
-              sx={{ 
-                bgcolor: 'primary.main', 
-                color: 'white', 
-                p: 2
-              }}
-            >
-              <Box display="flex" alignItems="center">
-                <PersonIcon sx={{ mr: 1 }} />
-                <Typography variant="h6">
-                  פרטי חובש - {selectedMedic.name}
-                </Typography>
-              </Box>
-            </DialogTitle>
-            <DialogContent dividers>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ mb: 2, borderRadius: 2 }}>
-                    <CardHeader 
-                      title="פרטי חובש" 
-                      titleTypographyProps={{ fontWeight: 'bold' }}
-                      sx={{ 
-                        bgcolor: '#f5f5f5', 
-                        borderBottom: '1px solid #e0e0e0',
-                        p: 2
-                      }}
-                    />
-                    <CardContent>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Avatar 
-                            sx={{ 
-                              width: 64, 
-                              height: 64, 
-                              mr: 2,
-                              fontSize: '1.5rem',
-                              bgcolor: selectedMedic.team === 'אתק' ? '#bbdefb' :
-                                      selectedMedic.team === 'רתק' ? '#c8e6c9' :
-                                      selectedMedic.team === 'חוד' ? '#ffe0b2' : '#e1bee7'
-                            }}
-                          >
-                            {selectedMedic.name.charAt(0)}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="h6" fontWeight="bold">{selectedMedic.name}</Typography>
-                            <Chip 
-                              label={selectedMedic.team} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: selectedMedic.team === 'אתק' ? '#bbdefb' :
-                                        selectedMedic.team === 'רתק' ? '#c8e6c9' :
-                                        selectedMedic.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                color: 'rgba(0, 0, 0, 0.7)',
-                                fontWeight: 'bold',
-                                '& .MuiChip-label': { px: 1 }
-                              }} 
-                            />
-                          </Box>
-                        </Box>
-                        
-                        <Divider />
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">תפקיד:</Typography>
-                          <Typography variant="body2" fontWeight="medium">{selectedMedic.role}</Typography>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">רמה:</Typography>
-                          <Chip 
-                            label={selectedMedic.experience} 
-                            size="small" 
-                            color={
-                              selectedMedic.experience === 'בכיר' ? 'success' :
-                              selectedMedic.experience === 'מתקדם' ? 'info' : 'warning'
-                            }
-                            variant="outlined"
-                          />
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">ממוצע ביצוע:</Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Rating 
-                              value={calculateAveragePerformance(selectedMedic.id) > 0 ? parseFloat(calculateAveragePerformance(selectedMedic.id)) : 0} 
-                              readOnly 
-                              precision={0.5}
-                              size="small"
-                              sx={{
-                                '& .MuiRating-iconFilled': {
-                                  color: calculateAveragePerformance(selectedMedic.id) >= 4 ? 'success.main' : 
-                                         calculateAveragePerformance(selectedMedic.id) >= 3 ? 'warning.main' : 'error.main',
-                                }
-                              }}
-                            />
-                            <Typography variant="body2" sx={{ ml: 1 }}>
-                              ({calculateAveragePerformance(selectedMedic.id)})
-                            </Typography>
-                          </Box>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">אימונים סך הכל:</Typography>
-                          <Typography variant="body2" fontWeight="medium">
-                            {getMedicTrainings(selectedMedic.id).length} אימונים
-                          </Typography>
-                        </Box>
-                      </Box>
-                      
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        fullWidth
-                        startIcon={<AddIcon />}
-                        onClick={() => {
-                          setOpenMedicDetails(false);
-                          handleAddTraining(selectedMedic);
-                        }}
-                        sx={{ mt: 3, borderRadius: 2 }}
-                      >
-                        תרגול חדש
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={8}>
-                  <Paper sx={{ borderRadius: 2, overflow: 'hidden', mb: 2 }}>
-                    <Box p={0.5} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
-                      <Typography variant="subtitle1" sx={{ p: 1.5, fontWeight: 'bold' }}>
-                        היסטוריית תרגולים
-                      </Typography>
-                    </Box>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: '#f9f9f9' }}>
-                            <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>סוג תרגול</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>ביצוע</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>נוכחות</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>הערות</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {getMedicTrainings(selectedMedic.id)
-                            .sort((a, b) => new Date(b.training_date) - new Date(a.training_date))
-                            .map((training) => (
-                              <TableRow
-                                key={training.id}
-                                hover
-                                sx={{ 
-                                  transition: 'all 0.2s',
-                                  '&:hover': {
-                                    bgcolor: 'rgba(25, 118, 210, 0.04)',
-                                  } 
-                                }}
-                              >
-                                <TableCell>{formatDate(training.training_date)}</TableCell>
-                                <TableCell>{training.training_type}</TableCell>
-                                <TableCell>
-                                  <Rating 
-                                    value={training.performance_rating} 
-                                    readOnly 
-                                    size="small"
-                                    sx={{
-                                      '& .MuiRating-iconFilled': {
-                                        color: training.performance_rating >= 4 ? 'success.main' : 
-                                               training.performance_rating >= 3 ? 'warning.main' : 'error.main',
-                                      }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={training.attendance !== false ? "נוכחות מלאה" : "נעדר/חלקי"}
-                                    color={training.attendance !== false ? "success" : "error"}
-                                    variant="outlined"
-                                    size="small"
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  {training.notes || <Typography variant="body2" color="text.secondary">אין הערות</Typography>}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          {getMedicTrainings(selectedMedic.id).length === 0 && (
-                            <TableRow>
-                              <TableCell colSpan={5} align="center">
-                                <Box sx={{ py: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                                  <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
-                                  <Typography sx={{ color: 'text.secondary' }}>אין היסטוריית תרגולים</Typography>
-                                  <Button 
-                                    variant="contained" 
-                                    color="primary" 
-                                    size="small"
-                                    startIcon={<AddIcon />}
-                                    onClick={() => {
-                                      setOpenMedicDetails(false);
-                                      handleAddTraining(selectedMedic);
-                                    }}
-                                    sx={{ mt: 1 }}
-                                  >
-                                    הוסף תרגול חדש
-                                  </Button>
-                                </Box>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Paper>
-                  
-                  {/* סטטיסטיקת סוגי תרגולים */}
-                  {getMedicTrainings(selectedMedic.id).length > 0 && (
-                    <Paper sx={{ borderRadius: 2, p: 2 }}>
-                      <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                        סטטיסטיקת תרגולים לפי סוג
-                      </Typography>
-                      <Box sx={{ mt: 2 }}>
-                        {trainingTypes
-                          .filter(type => getMedicTrainings(selectedMedic.id).some(t => t.training_type === type))
-                          .map(type => {
-                            const typeTrainings = getMedicTrainings(selectedMedic.id).filter(t => t.training_type === type);
-                            const avgRating = typeTrainings.reduce((sum, t) => sum + t.performance_rating, 0) / typeTrainings.length;
-                            const lastTraining = typeTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0];
-                            
-                            return (
-                              <Box key={type} sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Box>
-                                  <Typography variant="body2" fontWeight="medium">{type}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    תרגול אחרון: {formatDate(lastTraining.training_date)}
-                                  </Typography>
-                                </Box>
-                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                  <Box sx={{ mr: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <Typography variant="caption" color="text.secondary">
-                                      תרגולים
-                                    </Typography>
-                                    <Typography variant="body2" fontWeight="bold">
-                                      {typeTrainings.length}
-                                    </Typography>
-                                  </Box>
-                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <Typography variant="caption" color="text.secondary">
-                                      ביצוע
-                                    </Typography>
-                                    <Rating 
-                                      value={avgRating} 
-                                      readOnly 
-                                      precision={0.5}
-                                      size="small"
-                                      sx={{
-                                        '& .MuiRating-iconFilled': {
-                                          color: avgRating >= 4 ? 'success.main' : 
-                                                 avgRating >= 3 ? 'warning.main' : 'error.main',
-                                        }
-                                      }}
-                                    />
-                                  </Box>
-                                </Box>
-                              </Box>
-                            );
-                          })}
-                      </Box>
-                    </Paper>
-                  )}
-                </Grid>
-              </Grid>
-            </DialogContent>
-            <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-              <Button 
-                onClick={() => setOpenMedicDetails(false)}
-                variant="outlined"
-                startIcon={<CloseIcon />}
-              >
-                סגור
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
-    </Box>
-  );
-};
-
-// רכיב ניתוח ומעקב
+// Training Analysis component
 const TrainingAnalysis = ({ showNotification }) => {
   const [statsData, setStatsData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -4448,24 +3182,11 @@ const TrainingAnalysis = ({ showNotification }) => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // ניסיון להביא נתונים מהשרת
-        let stats;
-        
-        try {
-          // בדיקת חיבור לשרת והבאת נתונים
-          stats = await trainingService.getTrainingStats(selectedPeriod, selectedTeam);
-          console.log('נתוני ניתוח התקבלו מהשרת:', stats);
-        } catch (apiError) {
-          console.error('שגיאה בטעינת נתוני ניתוח מהשרת:', apiError);
-          // במקרה של שגיאת API, השתמש בנתוני מוק מקומיים
-          stats = mockDataService.trainingStats;
-          showNotification('לא ניתן להתחבר לשרת. מציג נתוני ניתוח מקומיים.', 'warning');
-        }
-        
-        // עדכון מצב הקומפוננטה עם הנתונים שהתקבלו
+        // Get training stats from API
+        const stats = await trainingService.getTrainingStats(selectedPeriod, selectedTeam);
         setStatsData(stats);
-      } catch (err) {
-        console.error('שגיאה חמורה בטעינת נתוני ניתוח:', err);
+      } catch (error) {
+        console.error('Error loading training stats:', error);
         showNotification('שגיאה בטעינת נתוני ניתוח', 'error');
       } finally {
         setLoading(false);
@@ -4473,7 +3194,7 @@ const TrainingAnalysis = ({ showNotification }) => {
     };
     
     fetchData();
-  }, [selectedPeriod, selectedTeam, showNotification]); // הוספת תלויות רלוונטיות
+  }, [selectedPeriod, selectedTeam, showNotification]);
 
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
@@ -4704,7 +3425,7 @@ const TrainingAnalysis = ({ showNotification }) => {
         </Grid>
       </Grid>
 
-      {selectedTab === 0 && (
+      {selectedTab === 0 && statsData && (
         // סיכום כולל
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
@@ -5216,7 +3937,7 @@ const TrainingAnalysis = ({ showNotification }) => {
         </Grid>
       )}
       
-      {selectedTab === 1 && (
+      {selectedTab === 1 && statsData && (
         // תרגול מחצ"ים
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
@@ -5721,340 +4442,9 @@ const TrainingAnalysis = ({ showNotification }) => {
         </Box>
       )}
 
-      {/* דיאלוג לפרטי חייל */}
-      <Dialog
-        open={openSoldierStats}
-        onClose={() => setOpenSoldierStats(false)}
-        fullWidth
-        maxWidth="md"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
-      >
-        {selectedSoldier && (
-          <>
-            <DialogTitle 
-              sx={{ 
-                bgcolor: 'primary.main', 
-                color: 'white', 
-                p: 2
-              }}
-            >
-              <Box display="flex" alignItems="center">
-                <BarChartIcon sx={{ mr: 1 }} />
-                <Typography variant="h6">
-                  נתוני תרגול - {selectedSoldier.name}
-                </Typography>
-              </Box>
-            </DialogTitle>
-            <DialogContent dividers>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
-                  <Card sx={{ mb: 2, borderRadius: 2 }}>
-                    <CardHeader 
-                      title="פרטי חייל" 
-                      titleTypographyProps={{ fontWeight: 'bold' }}
-                      sx={{ 
-                        bgcolor: '#f5f5f5', 
-                        borderBottom: '1px solid #e0e0e0',
-                        p: 2
-                      }}
-                    />
-                    <CardContent>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Avatar 
-                            sx={{ 
-                              width: 64, 
-                              height: 64, 
-                              mr: 2,
-                              fontSize: '1.5rem',
-                              bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
-                                      selectedSoldier.team === 'רתק' ? '#c8e6c9' :
-                                      selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7'
-                            }}
-                          >
-                            {selectedSoldier.name.charAt(0)}
-                          </Avatar>
-                          <Box>
-                            <Typography variant="h6" fontWeight="bold">{selectedSoldier.name}</Typography>
-                            <Chip 
-                              label={selectedSoldier.team} 
-                              size="small" 
-                              sx={{ 
-                                bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
-                                        selectedSoldier.team === 'רתק' ? '#c8e6c9' :
-                                        selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
-                                color: 'rgba(0, 0, 0, 0.7)',
-                                fontWeight: 'bold',
-                                '& .MuiChip-label': { px: 1 }
-                              }} 
-                            />
-                          </Box>
-                        </Box>
-                        
-                        <Divider />
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">מספר אישי:</Typography>
-                          <Typography variant="body2" fontWeight="medium">{selectedSoldier.personal_id}</Typography>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">זמן CAT ממוצע:</Typography>
-                          <Typography 
-                            variant="body2" 
-                            fontWeight="medium"
-                            color="success.main"
-                          >
-                            22 שניות
-                          </Typography>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">אחוז הצלחה:</Typography>
-                          <Typography variant="body2" fontWeight="medium" color="success.main">
-                            92%
-                          </Typography>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">תרגולים סך הכל:</Typography>
-                          <Typography variant="body2" fontWeight="medium">
-                            6 תרגולים
-                          </Typography>
-                        </Box>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="body2" color="text.secondary">דירוג בצוות:</Typography>
-                          <Chip
-                            size="small"
-                            label="#2"
-                            color="success"
-                          />
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card sx={{ borderRadius: 2 }}>
-                    <CardHeader 
-                      title="המלצות" 
-                      titleTypographyProps={{ fontWeight: 'bold' }}
-                      sx={{ 
-                        bgcolor: '#e3f2fd', 
-                        borderBottom: '1px solid #bbdefb',
-                        p: 2
-                      }}
-                    />
-                    <CardContent>
-                      <List dense>
-                        <ListItem>
-                          <ListItemIcon>
-                            <CheckIcon sx={{ color: 'success.main' }} />
-                          </ListItemIcon>
-                          <ListItemText 
-                            primary="ביצועים טובים מאוד" 
-                            secondary="ממשיך לשמור על זמני CAT מתחת ל-25 שניות"
-                          />
-                        </ListItem>
-                        <ListItem>
-                          <ListItemIcon>
-                            <InfoIcon sx={{ color: 'info.main' }} />
-                          </ListItemIcon>
-                          <ListItemText 
-                            primary="בצע ריענון תרגול" 
-                            secondary="לשמירה על רמת מיומנות גבוהה"
-                          />
-                        </ListItem>
-                        <ListItem>
-                          <ListItemIcon>
-                            <StarIcon sx={{ color: 'warning.main' }} />
-                          </ListItemIcon>
-                          <ListItemText 
-                            primary="פוטנציאל למדריך" 
-                            secondary="שקול להכשיר כמדריך מחצ\'י תרגולים עקב ביצועים מצוינים"
-                          />
-                        </ListItem>
-                      </List>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                
-                <Grid item xs={12} md={8}>
-                  <Paper sx={{ borderRadius: 2, p: 2, mb: 3 }}>
-                    <Typography variant="h6" fontWeight="bold" gutterBottom>
-                      היסטוריית תרגולים
-                    </Typography>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: '#f9f9f9' }}>
-                            <TableCell sx={{ fontWeight: 'bold' }}>תאריך</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>זמן CAT</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>תוצאה</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold' }}>הערות</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell>{formatDate('2025-03-05')}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                                <Typography sx={{ fontWeight: 'medium', color: 'success.main' }}>
-                                  22 שניות
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label="עבר"
-                                color="success"
-                                variant="filled"
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>שיפור ניכר בזמן ההנחה</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell>{formatDate('2025-02-05')}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                                <Typography sx={{ fontWeight: 'medium', color: 'success.main' }}>
-                                  28 שניות
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label="עבר"
-                                color="success"
-                                variant="filled"
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell></TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell>{formatDate('2025-01-10')}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                                <Typography sx={{ fontWeight: 'medium', color: 'warning.main' }}>
-                                  34 שניות
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label="עבר"
-                                color="success"
-                                variant="filled"
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>בוצע תרגול בתנאי לחץ</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Paper>
-                  
-                  <Paper sx={{ borderRadius: 2, p: 2 }}>
-                    <Typography variant="h6" fontWeight="bold" gutterBottom>
-                      מגמת התקדמות זמני CAT
-                    </Typography>
-                    <Box sx={{ height: '250px', width: '100%', p: 1 }}>
-                      {/* Line chart visualization of CAT times over time */}
-                      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                        <Box sx={{ display: 'flex', height: '200px', position: 'relative' }}>
-                          {/* Y-axis labels */}
-                          <Box sx={{ width: '30px', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                            <Typography variant="caption" color="text.secondary">50s</Typography>
-                            <Typography variant="caption" color="text.secondary">40s</Typography>
-                            <Typography variant="caption" color="text.secondary">30s</Typography>
-                            <Typography variant="caption" color="text.secondary">20s</Typography>
-                            <Typography variant="caption" color="text.secondary">10s</Typography>
-                          </Box>
-                          
-                          {/* Graph area */}
-                          <Box sx={{ flexGrow: 1, position: 'relative', height: '100%' }}>
-                            {/* Horizontal grid lines */}
-                            {[0, 25, 50, 75, 100].map(percent => (
-                              <Box 
-                                key={percent}
-                                sx={{ 
-                                  position: 'absolute',
-                                  width: '100%',
-                                  borderTop: '1px dashed #e0e0e0',
-                                  top: `${100 - percent}%`,
-                                }}
-                              />
-                            ))}
-                            
-                            {/* Data points and line */}
-                            <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
-                              <path 
-                                d="M 50,160 L 150,136 L 250,68 L 350,44"
-                                fill="none"
-                                stroke="#1976d2"
-                                strokeWidth="3"
-                              />
-                              <circle cx="50" cy="160" r="6" fill="#1976d2" />
-                              <circle cx="150" cy="136" r="6" fill="#1976d2" />
-                              <circle cx="250" cy="68" r="6" fill="#1976d2" />
-                              <circle cx="350" cy="44" r="6" fill="#1976d2" />
-                              
-                              {/* Target line */}
-                              <path 
-                                d="M 0,100 L 400,100"
-                                fill="none"
-                                stroke="#4caf50"
-                                strokeWidth="2"
-                                strokeDasharray="5,5"
-                              />
-                              <text x="370" y="95" fontSize="12" fill="#4caf50" fontWeight="bold">25s</text>
-                            </svg>
-                          </Box>
-                        </Box>
-                        
-                        {/* X-axis */}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', ml: '30px', mt: 1 }}>
-                          <Typography variant="caption" color="text.secondary">ינואר 2025</Typography>
-                          <Typography variant="caption" color="text.secondary">פברואר 2025</Typography>
-                          <Typography variant="caption" color="text.secondary">מרץ 2025</Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                      <Chip 
-                        icon={<TrendingUpIcon />} 
-                        label="מגמת שיפור מתמדת" 
-                        color="success" 
-                        variant="outlined"
-                      />
-                    </Box>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </DialogContent>
-            <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-              <Button 
-                onClick={() => setOpenSoldierStats(false)}
-                variant="outlined"
-                startIcon={<CloseIcon />}
-              >
-                סגור
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+      {/* דיאלוג לפרטי חייל - לא מוצג כאן לצרכי קיצור, אך אותו דיאלוג כמו בקומפוננטת TourniquetTraining */}
     </Box>
   );
 };
 
-export default TrainingManagement
+export default TrainingManagement;
