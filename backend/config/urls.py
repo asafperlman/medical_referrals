@@ -14,6 +14,8 @@ urlpatterns = [
     # Agregar una ruta para el frontend, cualquier ruta no reconocida será manejada por React
     re_path(r'^$', TemplateView.as_view(template_name='index.html')),
     re_path(r'^(?:.*)/?$', TemplateView.as_view(template_name='index.html')),
+    path('api/trainings/', include('training.urls')),
+
 ]
 
 # הוסף נתיבים לקבצים סטטיים ומדיה בסביבת פיתוח

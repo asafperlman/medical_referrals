@@ -687,9 +687,9 @@ const TrainingManagement = () => {
           </Box>
         </Box>
 
-        <Tabs 
-          value={activeTab} 
-          onChange={handleTabChange} 
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
           variant="scrollable"
           scrollButtons="auto"
           textColor="primary"
@@ -861,7 +861,7 @@ const TeamTraining = ({ showNotification }) => {
       setOpenForm(false);
     } catch (error) {
       console.error('Error saving training:', error);
-      trainingService.handleApiError(error, showNotification);
+        trainingService.handleApiError(error, showNotification);
     } finally {
       setLoading(false);
     }
@@ -874,7 +874,7 @@ const TeamTraining = ({ showNotification }) => {
       const success = await trainingService.deleteTeamTraining(id);
       if (success) {
         setTrainings(prevTrainings => prevTrainings.filter(t => t.id !== id));
-        showNotification('התרגיל נמחק בהצלחה', 'info');
+      showNotification('התרגיל נמחק בהצלחה', 'info');
       } else {
         throw new Error('Failed to delete training');
       }
@@ -1161,8 +1161,8 @@ const TeamTraining = ({ showNotification }) => {
               <List sx={{ mb: 2 }}>
                 {teamSummary.map(({ team, count, avgRating }) => {
                   const bgColor = team === 'אתק' ? '#bbdefb' :
-                                  team === 'רתק' ? '#c8e6c9' :
-                                  team === 'חוד' ? '#ffe0b2' : '#e1bee7';
+                                 team === 'רתק' ? '#c8e6c9' :
+                                 team === 'חוד' ? '#ffe0b2' : '#e1bee7';
                   
                   return (
                     <ListItem 
@@ -1191,11 +1191,11 @@ const TeamTraining = ({ showNotification }) => {
                         </Avatar>
                       </ListItemIcon>
                       <ListItemText 
-                        primary={`צוות ${team}`} 
-                        secondary={`${count} תרגילים`}
-                        primaryTypographyProps={{ fontWeight: 'bold', component: 'span' }}
-                        secondaryTypographyProps={{ component: 'span' }}
-                      />
+                      primary={`צוות ${team}`} 
+                      secondary={`${count} תרגילים`}
+                      primaryTypographyProps={{ fontWeight: 'bold', component: 'span' }}
+                      secondaryTypographyProps={{ component: 'span' }}
+                    />
                       {count > 0 && (
                         <Box display="flex" alignItems="center">
                           <Rating 
@@ -1478,8 +1478,9 @@ const MedicsTraining = ({ showNotification }) => {
     </Box>
   );
 };
-// TourniquetTraining component
+
 const TourniquetTraining = ({ showNotification }) => {
+  // הגדרת מצבים (state) עבור נתוני תרגולים, חיילים, צוותים, טעינה, ועוד
   const [trainings, setTrainings] = useState([]);
   const [soldiers, setSoldiers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -1494,71 +1495,54 @@ const TourniquetTraining = ({ showNotification }) => {
   const [openSoldierDetails, setOpenSoldierDetails] = useState(false);
   const [selectedSoldier, setSelectedSoldier] = useState(null);
   
-  // For group training
+  // הגדרת נתונים לטופס קבוצתי ולתרגול בודד
   const [groupFormData, setGroupFormData] = useState({
     training_date: new Date().toISOString().split('T')[0],
     team: '',
     general_notes: ''
   });
-  
-  // For soldier-specific performance in group training
   const [soldierTrainingData, setSoldierTrainingData] = useState({});
-  
-  // For individual training
   const [formData, setFormData] = useState({
     soldier_id: '',
-    training_date: '',
+    training_date: new Date().toISOString().split('T')[0],
     cat_time: '',
     passed: true,
     notes: '',
   });
-  
-  // Track if data is currently being saved
   const [saving, setSaving] = useState(false);
 
-  // Fetch data on component mount
-  useEffect(() => {
-    const fetchData = async () => {
+  // פונקציה לטעינת הנתונים (צוותים, חיילים, תרגולים)
+  const fetchData = useCallback(async () => {
       setLoading(true);
       try {
-        // Get teams
-        const teamsData = await trainingService.getTeams();
+      const teamsData = await trainingService.getTeams();
+      const soldiersData = await trainingService.getSoldiers();
+      const trainingsData = await trainingService.getTourniquetTrainings();
         setTeams(teamsData);
-        
-        // Get soldiers
-        const soldiersData = await trainingService.getSoldiers();
         setSoldiers(soldiersData);
-        
-        // Get tourniquet trainings
-        const trainingsData = await trainingService.getTourniquetTrainings();
         setTrainings(trainingsData);
-      } catch (error) {
-        console.error('Error loading tourniquet training data:', error);
+    } catch (error) {
+      console.error('Error loading tourniquet training data:', error);
         showNotification('שגיאה בטעינת נתונים', 'error');
       } finally {
         setLoading(false);
       }
-    };
-    
-    fetchData();
   }, [showNotification]);
 
-  // Helper functions
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // פונקציות עזר לחישוב נתוני תרגול עבור חייל מסוים
   const getSoldierTrainings = useCallback((soldierId) => {
-    return trainings.filter((t) => t.soldier_id === soldierId);
+    return trainings.filter(t => t.soldier_id === soldierId);
   }, [trainings]);
 
-  // Use the getCurrentMonthYear helper function
   const isTrainedThisMonth = useCallback((soldierId) => {
     const { month: currentMonth, year: currentYear } = getCurrentMonthYear();
-    
-    return trainings.some((t) => {
+    return trainings.some(t => {
       const trainingDate = new Date(t.training_date);
-      return (
-        t.soldier_id === soldierId &&
+      return t.soldier_id === soldierId &&
         trainingDate.getMonth() === currentMonth &&
-        trainingDate.getFullYear() === currentYear
-      );
+             trainingDate.getFullYear() === currentYear;
     });
   }, [trainings]);
 
@@ -1568,21 +1552,19 @@ const TourniquetTraining = ({ showNotification }) => {
 
   const calculateAverageCatTime = useCallback((soldierId) => {
     const soldierTrainings = getSoldierTrainings(soldierId);
-    if (soldierTrainings.length === 0) return 0;
-    
-    const totalTime = soldierTrainings.reduce((sum, t) => sum + parseInt(t.cat_time || 0, 10), 0);
+    if (!soldierTrainings.length) return 0;
+    const totalTime = soldierTrainings.reduce((sum, t) => sum + Number(t.cat_time || 0), 0);
     return (totalTime / soldierTrainings.length).toFixed(1);
   }, [getSoldierTrainings]);
 
   const calculatePassRate = useCallback((soldierId) => {
     const soldierTrainings = getSoldierTrainings(soldierId);
-    if (soldierTrainings.length === 0) return 0;
-    
+    if (!soldierTrainings.length) return 0;
     const passedCount = soldierTrainings.filter(t => t.passed).length;
     return ((passedCount / soldierTrainings.length) * 100).toFixed(0);
   }, [getSoldierTrainings]);
 
-  // Event handlers
+  // אירועים ושינויים בטפסים – למשל, הוספת תרגול חדש, טיפול בשינויים בטופס, בחירת חיילים בקבוצה וכו'
   const handleAddTraining = (soldier) => {
     setFormData({
       soldier_id: soldier.id,
@@ -1596,33 +1578,22 @@ const TourniquetTraining = ({ showNotification }) => {
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ 
-      ...prev, 
-      [name]: type === 'checkbox' ? checked : value 
-    }));
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleSaveTraining = async () => {
+    if (!formData.soldier_id || !formData.training_date || !formData.cat_time) {
+      showNotification('נא למלא את כל השדות הנדרשים', 'error');
+      return;
+    }
+    setSaving(true);
+    setLoading(true);
     try {
-      setSaving(true); // Use a separate saving state to avoid UI flicker
-      setLoading(true);
-      
-      // Validate required fields
-      if (!formData.soldier_id || !formData.training_date || !formData.cat_time) {
-        showNotification('נא למלא את כל השדות הנדרשים', 'error');
-        setSaving(false);
-        setLoading(false);
-        return;
-      }
-      
       const response = await trainingService.createTourniquetTraining(formData);
-      
-      if (response) {
-        const newTraining = response.data || response;
-        setTrainings(prev => [...prev, newTraining]);
-        setOpenForm(false);
+      const newTraining = response.data || response;
+      setTrainings(prev => [...prev, newTraining]);
+      setOpenForm(false);
         showNotification('התרגול נשמר בהצלחה', 'success');
-      }
     } catch (error) {
       console.error('Error saving training:', error);
       trainingService.handleApiError(error, showNotification);
@@ -1631,8 +1602,8 @@ const TourniquetTraining = ({ showNotification }) => {
       setLoading(false);
     }
   };
-
-  // Group training handlers
+  
+  // אירועים לטופס תרגול קבוצתי
   const handleOpenGroupTraining = () => {
     setGroupFormData({
       training_date: new Date().toISOString().split('T')[0],
@@ -1645,97 +1616,76 @@ const TourniquetTraining = ({ showNotification }) => {
     setActiveStep(0);
     setOpenGroupTrainingForm(true);
   };
-
+  
   const handleGroupFormChange = (e) => {
     const { name, value } = e.target;
     setGroupFormData(prev => ({ ...prev, [name]: value }));
-    
     if (name === 'team') {
-      // When team changes, update the selectedTeam state and clear selected soldiers
       setSelectedTeam(value);
       setSelectedSoldiers([]);
     }
   };
-
+  
   const handleNextToSelectSoldiers = () => {
     if (!groupFormData.team || !groupFormData.training_date) {
       showNotification('אנא בחר צוות ותאריך', 'error');
       return;
     }
-    // Ensure selectedTeam is properly set from the form data
     setSelectedTeam(groupFormData.team);
     setActiveStep(1);
   };
-
+  
   const handleSelectSoldier = (soldier) => {
     setSelectedSoldiers(prev => {
       if (prev.includes(soldier.id)) {
         return prev.filter(id => id !== soldier.id);
-      } else {
+    } else {
         return [...prev, soldier.id];
-      }
+    }
     });
   };
-
+  
   const handleNextToEnterData = () => {
     if (selectedSoldiers.length === 0) {
       showNotification('אנא בחר לפחות חייל אחד', 'error');
       return;
     }
-    
-    // Initialize data structure for all selected soldiers
     const initialData = {};
     selectedSoldiers.forEach(soldierId => {
-      initialData[soldierId] = {
-        cat_time: '',
-        passed: true,
-        notes: ''
-      };
+      initialData[soldierId] = { cat_time: '', passed: true, notes: '' };
     });
-    
     setSoldierTrainingData(initialData);
     setActiveStep(2);
   };
-
+  
   const handleSoldierDataChange = (soldierId, field, value) => {
     setSoldierTrainingData(prev => ({
       ...prev,
-      [soldierId]: {
-        ...prev[soldierId],
-        [field]: field === 'passed' ? value : value
-      }
+      [soldierId]: { ...prev[soldierId], [field]: value }
     }));
   };
-
+  
   const handleSaveGroupTraining = async () => {
-    // Validate data
     const missingData = selectedSoldiers.some(id => !soldierTrainingData[id]?.cat_time);
-    
     if (missingData) {
       showNotification('נא להזין זמן הנחת CAT עבור כל החיילים', 'error');
       return;
     }
-    
+    setLoading(true);
+    setSaving(true);
     try {
-      setLoading(true);
-      
-      // Create training entries for all soldiers
       const newTrainings = [];
-      
       for (const soldierId of selectedSoldiers) {
         const trainingData = {
-          soldier_id: soldierId,
-          training_date: groupFormData.training_date,
-          cat_time: soldierTrainingData[soldierId].cat_time,
-          passed: soldierTrainingData[soldierId].passed,
-          notes: soldierTrainingData[soldierId].notes || groupFormData.general_notes
+        soldier_id: soldierId,
+        training_date: groupFormData.training_date,
+        cat_time: soldierTrainingData[soldierId].cat_time,
+        passed: soldierTrainingData[soldierId].passed,
+        notes: soldierTrainingData[soldierId].notes || groupFormData.general_notes
         };
-        
-        // In a real app, this would be a batch operation for better performance
         const response = await trainingService.createTourniquetTraining(trainingData);
         newTrainings.push(response.data || response);
       }
-      
       setTrainings(prev => [...prev, ...newTrainings]);
       setOpenGroupTrainingForm(false);
       showNotification(`נשמרו נתוני תרגול עבור ${selectedSoldiers.length} חיילים`, 'success');
@@ -1743,6 +1693,7 @@ const TourniquetTraining = ({ showNotification }) => {
       console.error('Error saving group training:', error);
       trainingService.handleApiError(error, showNotification);
     } finally {
+      setSaving(false);
       setLoading(false);
     }
   };
@@ -1757,13 +1708,13 @@ const TourniquetTraining = ({ showNotification }) => {
     setFilterTeam('');
   };
 
-  // Filter soldiers based on search and team filter
+  // סינון חיילים לפי שם/מספר אישי וצוות
   const filteredSoldiers = soldiers.filter(soldier => {
     const matchesTeam = filterTeam ? soldier.team === filterTeam : true;
-    const matchesSearch = searchQuery === '' || 
+    const matchesSearch =
+      searchQuery === '' ||
       soldier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       soldier.personal_id.includes(searchQuery);
-    
     return matchesTeam && matchesSearch;
   });
 
@@ -1777,6 +1728,7 @@ const TourniquetTraining = ({ showNotification }) => {
 
   return (
     <Box sx={{ animation: 'fadeIn 0.5s', '@keyframes fadeIn': { from: { opacity: 0 }, to: { opacity: 1 } } }}>
+      {/* כותרת עליונה */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" component="h2" fontWeight="bold">
           תרגול מחצ"ים - חסמי עורקים (CAT)
@@ -1787,11 +1739,7 @@ const TourniquetTraining = ({ showNotification }) => {
             color="primary" 
             startIcon={<GroupIcon />} 
             onClick={handleOpenGroupTraining}
-            sx={{ 
-              mr: 1,
-              borderRadius: 2, 
-              textTransform: 'none',
-            }}
+            sx={{ mr: 1, borderRadius: 2, textTransform: 'none' }}
           >
             תרגול קבוצתי
           </Button>
@@ -1800,29 +1748,17 @@ const TourniquetTraining = ({ showNotification }) => {
             color="primary" 
             startIcon={<AddIcon />}
             onClick={() => setFilterTeam('')}
-            sx={{ 
-              borderRadius: 2, 
-              textTransform: 'none',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-              '&:hover': {
-                boxShadow: '0 6px 10px rgba(0,0,0,0.2)',
-              }
-            }}
+            sx={{ borderRadius: 2, textTransform: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', '&:hover': { boxShadow: '0 6px 10px rgba(0,0,0,0.2)' } }}
           >
             תרגול חדש
           </Button>
         </Box>
       </Box>
 
+      {/* סינון חיילים */}
       <Grid container spacing={2} mb={2}>
         <Grid item xs={12} md={8}>
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              gap: 1,
-              flexWrap: { xs: 'wrap', md: 'nowrap' } 
-            }}
-          >
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
             <TextField
               placeholder="חפש לפי שם או מספר אישי"
               value={searchQuery}
@@ -1835,28 +1771,11 @@ const TourniquetTraining = ({ showNotification }) => {
                   <InputAdornment position="start">
                     <SearchIcon />
                   </InputAdornment>
-                ),
+                )
               }}
-              sx={{ 
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
+              sx={{ bgcolor: 'white', borderRadius: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
-            <FormControl 
-              variant="outlined" 
-              size="small" 
-              sx={{ 
-                minWidth: 120,
-                bgcolor: 'white', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 2,
-                },
-              }}
-            >
+            <FormControl variant="outlined" size="small" sx={{ minWidth: 120, bgcolor: 'white', borderRadius: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
               <InputLabel id="team-filter-label">סינון לפי צוות</InputLabel>
               <Select
                 labelId="team-filter-label"
@@ -1873,13 +1792,7 @@ const TourniquetTraining = ({ showNotification }) => {
               </Select>
             </FormControl>
             <Tooltip title="אפס סינון">
-              <IconButton 
-                onClick={handleClearFilters}
-                sx={{ 
-                  bgcolor: 'white',
-                  '&:hover': { bgcolor: '#f5f5f5' } 
-                }}
-              >
+              <IconButton onClick={handleClearFilters} sx={{ bgcolor: 'white', '&:hover': { bgcolor: '#f5f5f5' } }}>
                 <RefreshIcon />
               </IconButton>
             </Tooltip>
@@ -1887,16 +1800,11 @@ const TourniquetTraining = ({ showNotification }) => {
         </Grid>
       </Grid>
 
+      {/* רשימות ותצוגות */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
-          <Paper 
-            elevation={2}
-            sx={{ 
-              borderRadius: 2,
-              overflow: 'hidden',
-              mb: 3
-            }}
-          >
+          {/* טבלת חיילים */}
+          <Paper elevation={2} sx={{ borderRadius: 2, overflow: 'hidden', mb: 3 }}>
             <Box p={0.5} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0" display="flex" justifyContent="space-between" alignItems="center">
               <Typography variant="subtitle2" sx={{ p: 1.5, fontWeight: 'bold' }}>
                 רשימת חיילים {filteredSoldiers.length > 0 && `(${filteredSoldiers.length})`}
@@ -1932,13 +1840,7 @@ const TourniquetTraining = ({ showNotification }) => {
                           <WarningIcon sx={{ color: 'text.secondary', fontSize: 40 }} />
                           <Typography sx={{ color: 'text.secondary' }}>לא נמצאו חיילים</Typography>
                           {(searchQuery || filterTeam) && (
-                            <Button 
-                              variant="outlined" 
-                              size="small" 
-                              startIcon={<RefreshIcon />}
-                              onClick={handleClearFilters}
-                              sx={{ mt: 1 }}
-                            >
+                            <Button variant="outlined" size="small" startIcon={<RefreshIcon />} onClick={handleClearFilters} sx={{ mt: 1 }}>
                               אפס סינון
                             </Button>
                           )}
@@ -1948,12 +1850,10 @@ const TourniquetTraining = ({ showNotification }) => {
                   ) : (
                     filteredSoldiers.map((soldier) => {
                       const soldierTrainings = getSoldierTrainings(soldier.id);
-                      const lastTraining =
-                        soldierTrainings.length > 0
+                      const lastTraining = soldierTrainings.length > 0
                           ? soldierTrainings.sort((a, b) => new Date(b.training_date) - new Date(a.training_date))[0]
                           : null;
                       const trainedThisMonth = isTrainedThisMonth(soldier.id);
-                      
                       return (
                         <TableRow
                           key={soldier.id}
@@ -2024,8 +1924,8 @@ const TourniquetTraining = ({ showNotification }) => {
                                 <Typography 
                                   sx={{ 
                                     fontWeight: 'medium',
-                                    color: parseInt(lastTraining.cat_time, 10) > 35 ? 'error.main' : 
-                                           parseInt(lastTraining.cat_time, 10) > 25 ? 'warning.main' : 'success.main'
+                                    color: parseInt(lastTraining.cat_time, 10) > 35 ? 'error.main' :
+                                      parseInt(lastTraining.cat_time, 10) > 25 ? 'warning.main' : 'success.main'
                                   }}
                                 >
                                   {lastTraining.cat_time} שניות
@@ -2070,15 +1970,8 @@ const TourniquetTraining = ({ showNotification }) => {
             </TableContainer>
           </Paper>
           
-          {/* Untrained soldiers list */}
-          <Paper 
-            elevation={2}
-            sx={{ 
-              borderRadius: 2,
-              overflow: 'hidden',
-              mb: 3
-            }}
-          >
+          {/* רשימת חיילים שלא תורגלו החודש */}
+          <Paper elevation={2} sx={{ borderRadius: 2, overflow: 'hidden', mb: 3 }}>
             <Box p={0.5} bgcolor="#ffebee" borderBottom="1px solid #ffcdd2">
               <Typography variant="subtitle2" sx={{ p: 1.5, fontWeight: 'bold', color: 'error.main', display: 'flex', alignItems: 'center' }}>
                 <ErrorIcon sx={{ mr: 1 }} /> חיילים שלא ביצעו תרגול החודש ({getUntrained().length})
@@ -2104,9 +1997,7 @@ const TourniquetTraining = ({ showNotification }) => {
                           borderRadius: 2,
                           bgcolor: 'rgba(255, 152, 0, 0.05)',
                           borderColor: 'rgba(255, 152, 0, 0.2)',
-                          '&:hover': {
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                          }
+                          '&:hover': { boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }
                         }}
                       >
                         <Avatar 
@@ -2146,24 +2037,15 @@ const TourniquetTraining = ({ showNotification }) => {
           </Paper>
         </Grid>
 
+        {/* צד ימין – סטטיסטיקות וסיכום חודשי */}
         <Grid item xs={12} md={4}>
           <Grid container spacing={3} direction="column">
             <Grid item>
-              <Card 
-                elevation={2} 
-                sx={{ 
-                  borderRadius: 2,
-                  overflow: 'hidden'
-                }}
-              >
+              <Card elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
                 <CardHeader 
                   title="סטטיסטיקת תרגול לפי צוות" 
                   titleTypographyProps={{ fontWeight: 'bold' }}
-                  sx={{ 
-                    bgcolor: '#f5f5f5', 
-                    borderBottom: '1px solid #e0e0e0',
-                    p: 2
-                  }}
+                  sx={{ bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0', p: 2 }}
                 />
                 <CardContent>
                   <TableContainer>
@@ -2178,19 +2060,14 @@ const TourniquetTraining = ({ showNotification }) => {
                       </TableHead>
                       <TableBody>
                         {teams.map((team) => {
-                          const teamSoldiers = soldiers.filter((s) => s.team === team);
-                          const trainedCount = teamSoldiers.filter((s) => isTrainedThisMonth(s.id)).length;
-                          const percentage =
-                            teamSoldiers.length > 0 ? Math.round((trainedCount / teamSoldiers.length) * 100) : 0;
-                            
+                          const teamSoldiers = soldiers.filter(s => s.team === team);
+                          const trainedCount = teamSoldiers.filter(s => isTrainedThisMonth(s.id)).length;
+                          const percentage = teamSoldiers.length > 0 ? Math.round((trainedCount / teamSoldiers.length) * 100) : 0;
                           return (
                             <TableRow 
                               key={team}
                               hover
-                              sx={{ 
-                                cursor: 'pointer',
-                                '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.04)' },
-                              }}
+                              sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.04)' } }}
                               onClick={() => setFilterTeam(team)}
                             >
                               <TableCell>
@@ -2198,9 +2075,7 @@ const TourniquetTraining = ({ showNotification }) => {
                                   label={team} 
                                   size="small" 
                                   sx={{ 
-                                    bgcolor: team === 'אתק' ? '#bbdefb' :
-                                    team === 'רתק' ? '#c8e6c9' :
-                                    team === 'חוד' ? '#ffe0b2' : '#e1bee7',
+                                    bgcolor: team === 'אתק' ? '#bbdefb' : team === 'רתק' ? '#c8e6c9' : team === 'חוד' ? '#ffe0b2' : '#e1bee7',
                                     color: 'rgba(0, 0, 0, 0.7)',
                                     fontWeight: 'bold',
                                     '& .MuiChip-label': { px: 1 }
@@ -2217,8 +2092,7 @@ const TourniquetTraining = ({ showNotification }) => {
                                       height: '6px',
                                       borderRadius: '3px',
                                       mr: 1,
-                                      bgcolor: percentage >= 80 ? 'success.light' : 
-                                              percentage >= 50 ? 'warning.light' : 'error.light',
+                                      bgcolor: percentage >= 80 ? 'success.light' : percentage >= 50 ? 'warning.light' : 'error.light'
                                     }}
                                   >
                                     <Box 
@@ -2226,19 +2100,11 @@ const TourniquetTraining = ({ showNotification }) => {
                                         width: `${percentage}%`,
                                         height: '100%',
                                         borderRadius: '3px',
-                                        bgcolor: percentage >= 80 ? 'success.main' : 
-                                                percentage >= 50 ? 'warning.main' : 'error.main',
+                                        bgcolor: percentage >= 80 ? 'success.main' : percentage >= 50 ? 'warning.main' : 'error.main'
                                       }}
                                     />
                                   </Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    sx={{ 
-                                      fontWeight: 'medium',
-                                      color: percentage >= 80 ? 'success.main' : 
-                                            percentage >= 50 ? 'warning.main' : 'error.main'
-                                    }}
-                                  >
+                                  <Typography variant="body2" sx={{ fontWeight: 'medium', color: percentage >= 80 ? 'success.main' : percentage >= 50 ? 'warning.main' : 'error.main' }}>
                                     {percentage}%
                                   </Typography>
                                 </Box>
@@ -2254,21 +2120,11 @@ const TourniquetTraining = ({ showNotification }) => {
             </Grid>
 
             <Grid item>
-              <Card 
-                elevation={2} 
-                sx={{ 
-                  borderRadius: 2,
-                  overflow: 'hidden'
-                }}
-              >
+              <Card elevation={2} sx={{ borderRadius: 2, overflow: 'hidden' }}>
                 <CardHeader 
                   title="סיכום חודשי" 
                   titleTypographyProps={{ fontWeight: 'bold' }}
-                  sx={{ 
-                    bgcolor: '#f5f5f5', 
-                    borderBottom: '1px solid #e0e0e0',
-                    p: 2
-                  }}
+                  sx={{ bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0', p: 2 }}
                 />
                 <CardContent>
                   <Box textAlign="center" mb={3}>
@@ -2297,7 +2153,7 @@ const TourniquetTraining = ({ showNotification }) => {
                             תורגלו החודש
                           </Typography>
                           <Typography variant="h4" fontWeight="bold">
-                            {soldiers.filter((s) => isTrainedThisMonth(s.id)).length}
+                            {soldiers.filter(s => isTrainedThisMonth(s.id)).length}
                           </Typography>
                         </Paper>
                       </Grid>
@@ -2319,7 +2175,7 @@ const TourniquetTraining = ({ showNotification }) => {
                             לא תורגלו החודש
                           </Typography>
                           <Typography variant="h4" fontWeight="bold">
-                            {soldiers.filter((s) => !isTrainedThisMonth(s.id)).length}
+                            {soldiers.filter(s => !isTrainedThisMonth(s.id)).length}
                           </Typography>
                         </Paper>
                       </Grid>
@@ -2330,50 +2186,48 @@ const TourniquetTraining = ({ showNotification }) => {
                         אחוז ביצוע חודשי
                       </Typography>
                       {soldiers.length > 0 && (
-                        <Box sx={{ position: 'relative', display: 'inline-block', width: '150px', height: '150px' }}>
-                          <CircularProgress
-                            variant="determinate"
-                            value={100}
-                            size={150}
-                            thickness={5}
-                            sx={{ color: 'grey.200', position: 'absolute', top: 0, left: 0 }}
-                          />
-                          <CircularProgress
-                            variant="determinate"
-                            value={Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}
-                            size={150}
-                            thickness={5}
-                            sx={{ 
-                              color: 
-                                Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 80 ? 'success.main' : 
-                                Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 50 ? 'warning.main' : 'error.main',
-                              position: 'absolute',
-                              top: 0,
-                              left: 0
-                            }}
-                          />
-                          <Box
-                            sx={{
-                              top: 0,
-                              left: 0,
-                              bottom: 0,
-                              right: 0,
-                              position: 'absolute',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <Typography
-                              variant="h4"
-                              component="div"
-                              color="text.primary"
-                              fontWeight="bold"
-                            >
-                              {Math.round((soldiers.filter((s) => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}%
-                            </Typography>
-                          </Box>
+                      <Box sx={{ position: 'relative', display: 'inline-block', width: '150px', height: '150px' }}>
+                        <CircularProgress
+                          variant="determinate"
+                          value={100}
+                          size={150}
+                          thickness={5}
+                          sx={{ color: 'grey.200', position: 'absolute', top: 0, left: 0 }}
+                        />
+                        <CircularProgress
+                          variant="determinate"
+                            value={Math.round((soldiers.filter(s => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}
+                          size={150}
+                          thickness={5}
+                          sx={{ 
+                            color: 
+                                Math.round((soldiers.filter(s => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 80
+                                  ? 'success.main'
+                                  : Math.round((soldiers.filter(s => isTrainedThisMonth(s.id)).length / soldiers.length) * 100) >= 50
+                                    ? 'warning.main'
+                                    : 'error.main',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0
+                          }}
+                        />
+                        <Box
+                          sx={{
+                            top: 0,
+                            left: 0,
+                            bottom: 0,
+                            right: 0,
+                            position: 'absolute',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                            <Typography variant="h4" component="div" color="text.primary" fontWeight="bold">
+                              {Math.round((soldiers.filter(s => isTrainedThisMonth(s.id)).length / soldiers.length) * 100)}%
+                          </Typography>
                         </Box>
+                      </Box>
                       )}
                     </Box>
                   </Box>
@@ -2384,32 +2238,24 @@ const TourniquetTraining = ({ showNotification }) => {
         </Grid>
       </Grid>
 
-      {/* Individual Training Form Dialog */}
+      {/* טופס לתרגול בודד */}
       <Dialog 
         open={openForm} 
         onClose={() => setOpenForm(false)} 
         fullWidth 
         maxWidth="sm"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
+        PaperProps={{ elevation: 5, sx: { borderRadius: 2 } }}
       >
-        <DialogTitle 
-          sx={{ 
-            bgcolor: 'primary.main', 
-            color: 'white', 
-            p: 2
-          }}
-        >
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', p: 2 }}>
           <Box display="flex" alignItems="center">
-            <AddIcon sx={{ mr:.5 }} />
+            <AddIcon sx={{ mr: 0.5 }} />
             <Typography variant="h6">
               תרגול חדש - {soldiers.find(s => s.id === formData.soldier_id)?.name}
             </Typography>
           </Box>
         </DialogTitle>
-       
+        <DialogContent dividers>
+          <Grid container spacing={2} sx={{ pt: 1 }}>
             <Grid item xs={12}>
               <FormControl fullWidth>
                 <Box 
@@ -2423,9 +2269,7 @@ const TourniquetTraining = ({ showNotification }) => {
                   }}
                 >
                   <Box display="flex" alignItems="center">
-                    <Typography variant="body1" sx={{ mr: 1 }}>
-                      תוצאה:
-                    </Typography>
+                    <Typography variant="body1" sx={{ mr: 1 }}>תוצאה:</Typography>
                     <Chip 
                       label={formData.passed ? "עבר" : "נכשל"} 
                       color={formData.passed ? "success" : "error"}
@@ -2458,45 +2302,48 @@ const TourniquetTraining = ({ showNotification }) => {
                 placeholder="הוסף הערות לגבי ביצוע התרגול, דגשים לשיפור וכדומה"
               />
             </Grid>
-          <DialogContent dividers>
-            <Grid container spacing={2} sx={{ pt: 1 }}>
-              <Grid item xs={12}>
-                <TextField
-                  name="training_date"
-                  label="תאריך תרגול"
-                  type="date"
-                  fullWidth
-                  required
-                  value={formData.training_date}
-                  onChange={handleFormChange}
-                  InputLabelProps={{ shrink: true }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <CalendarTodayIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-                  {/* Other Grid items and form fields here */}
-                </Grid>
-          </DialogContent>
+            <Grid item xs={12}>
+              <TextField
+                name="training_date"
+                label="תאריך תרגול"
+                type="date"
+                fullWidth
+                required
+                value={formData.training_date}
+                onChange={handleFormChange}
+                InputLabelProps={{ shrink: true }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarTodayIcon fontSize="small" />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                name="cat_time"
+                label="זמן CAT (בשניות)"
+                type="number"
+                fullWidth
+                required
+                value={formData.cat_time}
+                onChange={handleFormChange}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">שניות</InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-          <Button 
-            onClick={() => setOpenForm(false)}
-            variant="outlined"
-            startIcon={<CloseIcon />}
-          >
+          <Button onClick={() => setOpenForm(false)} variant="outlined" startIcon={<CloseIcon />}>
             ביטול
           </Button>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={handleSaveTraining}
-            startIcon={<SaveIcon />}
-            disabled={!formData.cat_time || saving}
-          >
+          <Button variant="contained" color="primary" onClick={handleSaveTraining} startIcon={<SaveIcon />} disabled={!formData.cat_time || saving}>
             {saving ? 'שומר...' : 'שמור'}
           </Button>
         </DialogActions>
@@ -2508,20 +2355,11 @@ const TourniquetTraining = ({ showNotification }) => {
         onClose={() => setOpenGroupTrainingForm(false)} 
         fullWidth 
         maxWidth="md"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
+        PaperProps={{ elevation: 5, sx: { borderRadius: 2 } }}
       >
-        <DialogTitle 
-          sx={{ 
-            bgcolor: 'primary.main', 
-            color: 'white', 
-            p: 2
-          }}
-        >
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', p: 2 }}>
           <Box display="flex" alignItems="center">
-            <GroupIcon sx={{ mr:.5 }} />
+            <GroupIcon sx={{ mr: 0.5 }} />
             <Typography variant="h6">
               אימון קבוצתי - מחצ"ים
             </Typography>
@@ -2539,7 +2377,6 @@ const TourniquetTraining = ({ showNotification }) => {
               <StepLabel>הזנת נתוני תרגול</StepLabel>
             </Step>
           </Stepper>
-          
           {activeStep === 0 && (
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
@@ -2557,7 +2394,7 @@ const TourniquetTraining = ({ showNotification }) => {
                       <InputAdornment position="start">
                         <CalendarTodayIcon fontSize="small" />
                       </InputAdornment>
-                    ),
+                    )
                   }}
                 />
               </Grid>
@@ -2598,17 +2435,13 @@ const TourniquetTraining = ({ showNotification }) => {
               </Grid>
             </Grid>
           )}
-          
           {activeStep === 1 && (
             <Box>
               <Typography variant="subtitle1" gutterBottom fontWeight="medium">
                 בחר חיילים מצוות {groupFormData.team} להשתתפות בתרגול:
               </Typography>
-              
               <Grid container spacing={1} sx={{ mt: 1 }}>
-                {soldiers
-                  .filter(s => s.team === groupFormData.team)
-                  .map(soldier => (
+                {soldiers.filter(s => s.team === groupFormData.team).map(soldier => (
                     <Grid item xs={12} sm={6} md={4} key={soldier.id}>
                       <Card 
                         variant={selectedSoldiers.includes(soldier.id) ? "elevation" : "outlined"}
@@ -2624,7 +2457,7 @@ const TourniquetTraining = ({ showNotification }) => {
                           bgcolor: selectedSoldiers.includes(soldier.id) ? 'primary.light' : 'white',
                           '&:hover': {
                             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                            bgcolor: selectedSoldiers.includes(soldier.id) ? 'primary.light' : 'rgba(25, 118, 210, 0.04)',
+                          bgcolor: selectedSoldiers.includes(soldier.id) ? 'primary.light' : 'rgba(25, 118, 210, 0.04)'
                           }
                         }}
                       >
@@ -2646,11 +2479,7 @@ const TourniquetTraining = ({ showNotification }) => {
                           {soldier.name.charAt(0)}
                         </Avatar>
                         <Box sx={{ flexGrow: 1 }}>
-                          <Typography 
-                            variant="body2" 
-                            fontWeight="medium" 
-                            color={selectedSoldiers.includes(soldier.id) ? 'primary.contrastText' : 'inherit'}
-                          >
+                        <Typography variant="body2" fontWeight="medium" color={selectedSoldiers.includes(soldier.id) ? 'primary.contrastText' : 'inherit'}>
                             {soldier.name}
                           </Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -2677,7 +2506,6 @@ const TourniquetTraining = ({ showNotification }) => {
                     </Grid>
                   ))}
               </Grid>
-              
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, borderTop: '1px solid #eee', pt: 2 }}>
                 <Button
                   variant="outlined"
@@ -2696,20 +2524,18 @@ const TourniquetTraining = ({ showNotification }) => {
                   onClick={() => {
                     setSelectedSoldiers(soldiers.filter(s => s.team === groupFormData.team).map(s => s.id));
                   }}
-                  startIcon={<PeopleIcon />}
+                  startIcon={<GroupIcon />}
                 >
                   בחר את כל החיילים בצוות
                 </Button>
               </Box>
             </Box>
           )}
-          
           {activeStep === 2 && (
             <Box>
               <Typography variant="subtitle1" gutterBottom fontWeight="medium">
                 הזן נתוני תרגול עבור {selectedSoldiers.length} חיילים:
               </Typography>
-              
               <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
                 <Table>
                   <TableHead>
@@ -2752,10 +2578,8 @@ const TourniquetTraining = ({ showNotification }) => {
                               onChange={(e) => handleSoldierDataChange(soldierId, 'cat_time', e.target.value)}
                               InputProps={{
                                 endAdornment: (
-                                  <InputAdornment position="end">
-                                    שניות
-                                  </InputAdornment>
-                                ),
+                                  <InputAdornment position="end">שניות</InputAdornment>
+                                )
                               }}
                               error={soldierTrainingData[soldierId]?.cat_time === ''}
                             />
@@ -2767,7 +2591,7 @@ const TourniquetTraining = ({ showNotification }) => {
                                 size="small"
                                 value={soldierTrainingData[soldierId]?.passed}
                                 onChange={(e, value) => {
-                                  if (value !== null) { // Prevent deselection
+                                  if (value !== null) {
                                     handleSoldierDataChange(soldierId, 'passed', value);
                                   }
                                 }}
@@ -2779,7 +2603,7 @@ const TourniquetTraining = ({ showNotification }) => {
                                   sx={{ 
                                     color: soldierTrainingData[soldierId]?.passed ? 'success.main' : 'inherit',
                                     borderColor: soldierTrainingData[soldierId]?.passed ? 'success.main' : 'inherit',
-                                    bgcolor: soldierTrainingData[soldierId]?.passed ? 'success.light' : 'inherit',
+                                    bgcolor: soldierTrainingData[soldierId]?.passed ? 'success.light' : 'inherit'
                                   }}
                                 >
                                   <CheckIcon sx={{ mr: 0.5 }} /> עבר
@@ -2790,7 +2614,7 @@ const TourniquetTraining = ({ showNotification }) => {
                                   sx={{ 
                                     color: soldierTrainingData[soldierId]?.passed === false ? 'error.main' : 'inherit',
                                     borderColor: soldierTrainingData[soldierId]?.passed === false ? 'error.main' : 'inherit',
-                                    bgcolor: soldierTrainingData[soldierId]?.passed === false ? 'error.light' : 'inherit',
+                                    bgcolor: soldierTrainingData[soldierId]?.passed === false ? 'error.light' : 'inherit'
                                   }}
                                 >
                                   <CloseIcon sx={{ mr: 0.5 }} /> נכשל
@@ -2818,39 +2642,20 @@ const TourniquetTraining = ({ showNotification }) => {
         </DialogContent>
         <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5', justifyContent: 'space-between' }}>
           {activeStep > 0 ? (
-            <Button 
-              onClick={() => setActiveStep(activeStep - 1)}
-              variant="outlined"
-            >
+            <Button onClick={() => setActiveStep(activeStep - 1)} variant="outlined">
               חזור
             </Button>
           ) : (
-            <Button 
-              onClick={() => setOpenGroupTrainingForm(false)}
-              variant="outlined"
-              startIcon={<CloseIcon />}
-            >
+            <Button onClick={() => setOpenGroupTrainingForm(false)} variant="outlined" startIcon={<CloseIcon />}>
               ביטול
             </Button>
           )}
-          
           {activeStep < 2 ? (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={activeStep === 0 ? handleNextToSelectSoldiers : handleNextToEnterData}
-              endIcon={<ArrowForwardIcon />}
-            >
+            <Button variant="contained" color="primary" onClick={activeStep === 0 ? handleNextToSelectSoldiers : handleNextToEnterData} endIcon={<ArrowForwardIcon />}>
               המשך
             </Button>
           ) : (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleSaveGroupTraining}
-              startIcon={<SaveIcon />}
-              disabled={saving}
-            >
+            <Button variant="contained" color="primary" onClick={handleSaveGroupTraining} startIcon={<SaveIcon />} disabled={saving}>
               {saving ? 'שומר...' : 'שמור נתוני תרגול'}
             </Button>
           )}
@@ -2863,20 +2668,11 @@ const TourniquetTraining = ({ showNotification }) => {
         onClose={() => setOpenSoldierDetails(false)}
         fullWidth
         maxWidth="md"
-        PaperProps={{
-          elevation: 5,
-          sx: { borderRadius: 2 }
-        }}
+        PaperProps={{ elevation: 5, sx: { borderRadius: 2 } }}
       >
         {selectedSoldier && (
           <>
-            <DialogTitle 
-              sx={{ 
-                bgcolor: 'primary.main', 
-                color: 'white', 
-                p: 2
-              }}
-            >
+            <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', p: 2 }}>
               <Box display="flex" alignItems="center">
                 <PersonIcon sx={{ mr: 1 }} />
                 <Typography variant="h6">
@@ -2891,11 +2687,7 @@ const TourniquetTraining = ({ showNotification }) => {
                     <CardHeader 
                       title="פרטי חייל" 
                       titleTypographyProps={{ fontWeight: 'bold' }}
-                      sx={{ 
-                        bgcolor: '#f5f5f5', 
-                        borderBottom: '1px solid #e0e0e0',
-                        p: 2
-                      }}
+                      sx={{ bgcolor: '#f5f5f5', borderBottom: '1px solid #e0e0e0', p: 2 }}
                     />
                     <CardContent>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -2906,22 +2698,34 @@ const TourniquetTraining = ({ showNotification }) => {
                               height: 64, 
                               mr: 2,
                               fontSize: '1.5rem',
-                              bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
-                                      selectedSoldier.team === 'רתק' ? '#c8e6c9' :
-                                      selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7'
+                              bgcolor:
+                                selectedSoldier.team === 'אתק'
+                                  ? '#bbdefb'
+                                  : selectedSoldier.team === 'רתק'
+                                    ? '#c8e6c9'
+                                    : selectedSoldier.team === 'חוד'
+                                      ? '#ffe0b2'
+                                      : '#e1bee7'
                             }}
                           >
                             {selectedSoldier.name.charAt(0)}
                           </Avatar>
                           <Box>
-                            <Typography variant="h6" fontWeight="bold">{selectedSoldier.name}</Typography>
+                            <Typography variant="h6" fontWeight="bold">
+                              {selectedSoldier.name}
+                            </Typography>
                             <Chip 
                               label={selectedSoldier.team} 
                               size="small" 
                               sx={{ 
-                                bgcolor: selectedSoldier.team === 'אתק' ? '#bbdefb' :
-                                        selectedSoldier.team === 'רתק' ? '#c8e6c9' :
-                                        selectedSoldier.team === 'חוד' ? '#ffe0b2' : '#e1bee7',
+                                bgcolor:
+                                  selectedSoldier.team === 'אתק'
+                                    ? '#bbdefb'
+                                    : selectedSoldier.team === 'רתק'
+                                      ? '#c8e6c9'
+                                      : selectedSoldier.team === 'חוד'
+                                        ? '#ffe0b2'
+                                        : '#e1bee7',
                                 color: 'rgba(0, 0, 0, 0.7)',
                                 fontWeight: 'bold',
                                 '& .MuiChip-label': { px: 1 }
@@ -2929,42 +2733,39 @@ const TourniquetTraining = ({ showNotification }) => {
                             />
                           </Box>
                         </Box>
-                        
                         <Divider />
-                        
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="body2" color="text.secondary">מספר אישי:</Typography>
                           <Typography variant="body2" fontWeight="medium">{selectedSoldier.personal_id}</Typography>
                         </Box>
-                        
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="body2" color="text.secondary">ממוצע זמן CAT:</Typography>
                           <Typography 
                             variant="body2" 
                             fontWeight="medium"
                             color={
-                              parseInt(calculateAverageCatTime(selectedSoldier.id)) > 35 ? 'error.main' : 
-                              parseInt(calculateAverageCatTime(selectedSoldier.id)) > 25 ? 'warning.main' : 'success.main'
+                              parseInt(calculateAverageCatTime(selectedSoldier.id)) > 35
+                                ? 'error.main'
+                                : parseInt(calculateAverageCatTime(selectedSoldier.id)) > 25
+                                  ? 'warning.main'
+                                  : 'success.main'
                             }
                           >
                             {calculateAverageCatTime(selectedSoldier.id)} שניות
                           </Typography>
                         </Box>
-                        
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="body2" color="text.secondary">אחוז הצלחה:</Typography>
                           <Typography variant="body2" fontWeight="medium">
                             {calculatePassRate(selectedSoldier.id)}%
                           </Typography>
                         </Box>
-                        
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="body2" color="text.secondary">תרגולים סך הכל:</Typography>
                           <Typography variant="body2" fontWeight="medium">
                             {getSoldierTrainings(selectedSoldier.id).length} תרגולים
                           </Typography>
                         </Box>
-                        
                         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                           <Typography variant="body2" color="text.secondary">סטטוס חודשי:</Typography>
                           <Chip
@@ -2975,7 +2776,6 @@ const TourniquetTraining = ({ showNotification }) => {
                           />
                         </Box>
                       </Box>
-                      
                       <Button
                         variant="contained"
                         color="primary"
@@ -2992,7 +2792,6 @@ const TourniquetTraining = ({ showNotification }) => {
                     </CardContent>
                   </Card>
                 </Grid>
-                
                 <Grid item xs={12} md={8}>
                   <Paper sx={{ borderRadius: 2, overflow: 'hidden', mb: 2 }}>
                     <Box p={0.5} bgcolor="#f5f5f5" borderBottom="1px solid #e0e0e0">
@@ -3013,28 +2812,20 @@ const TourniquetTraining = ({ showNotification }) => {
                         <TableBody>
                           {getSoldierTrainings(selectedSoldier.id)
                             .sort((a, b) => new Date(b.training_date) - new Date(a.training_date))
-                            .map((training) => (
+                            .map(training => (
                               <TableRow
                                 key={training.id}
                                 hover
                                 sx={{ 
                                   transition: 'all 0.2s',
-                                  '&:hover': {
-                                    bgcolor: 'rgba(25, 118, 210, 0.04)',
-                                  } 
+                                  '&:hover': { bgcolor: 'rgba(25, 118, 210, 0.04)' }
                                 }}
                               >
                                 <TableCell>{formatDate(training.training_date)}</TableCell>
                                 <TableCell>
                                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                     <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary' }} />
-                                    <Typography 
-                                      sx={{ 
-                                        fontWeight: 'medium',
-                                        color: parseInt(training.cat_time) > 35 ? 'error.main' : 
-                                               parseInt(training.cat_time) > 25 ? 'warning.main' : 'success.main'
-                                      }}
-                                    >
+                                    <Typography sx={{ fontWeight: 'medium', color: parseInt(training.cat_time) > 35 ? 'error.main' : parseInt(training.cat_time) > 25 ? 'warning.main' : 'success.main' }}>
                                       {training.cat_time} שניות
                                     </Typography>
                                   </Box>
@@ -3079,8 +2870,6 @@ const TourniquetTraining = ({ showNotification }) => {
                       </Table>
                     </TableContainer>
                   </Paper>
-                  
-                  {/* גרף התקדמות */}
                   {getSoldierTrainings(selectedSoldier.id).length > 0 && (
                     <Paper sx={{ borderRadius: 2, p: 2 }}>
                       <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
@@ -3090,7 +2879,6 @@ const TourniquetTraining = ({ showNotification }) => {
                         מציג את זמני הנחת החסם לאורך זמן. ניתן לראות שיפור ככל שהזמן קטן יותר.
                       </Typography>
                       <Box sx={{ height: '180px', width: '100%', p: 1 }}>
-                        {/* Here we'd include an actual chart component, this is just a basic visualization */}
                         <Box sx={{ height: '100%', position: 'relative', display: 'flex', alignItems: 'flex-end' }}>
                           {getSoldierTrainings(selectedSoldier.id)
                             .sort((a, b) => new Date(a.training_date) - new Date(b.training_date))
@@ -3104,41 +2892,29 @@ const TourniquetTraining = ({ showNotification }) => {
                                     flexGrow: 1, 
                                     mx: 0.5,
                                     height: `${height}%`,
-                                    bgcolor: parseInt(training.cat_time, 10) > 35 ? 'error.light' : 
-                                             parseInt(training.cat_time, 10) > 25 ? 'warning.light' : 'success.light',
+                                    bgcolor: parseInt(training.cat_time, 10) > 35
+                                      ? 'error.light'
+                                      : parseInt(training.cat_time, 10) > 25
+                                        ? 'warning.light'
+                                        : 'success.light',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'flex-end',
                                     alignItems: 'center',
                                     position: 'relative',
                                     '&:hover': {
-                                      bgcolor: parseInt(training.cat_time, 10) > 35 ? 'error.main' : 
-                                               parseInt(training.cat_time, 10) > 25 ? 'warning.main' : 'success.main',
+                                      bgcolor: parseInt(training.cat_time, 10) > 35
+                                        ? 'error.main'
+                                        : parseInt(training.cat_time, 10) > 25
+                                          ? 'warning.main'
+                                          : 'success.main',
                                     }
                                   }}
                                 >
-                                  <Typography 
-                                    variant="caption" 
-                                    sx={{ 
-                                      position: 'absolute', 
-                                      top: -20, 
-                                      color: 'text.secondary',
-                                      fontWeight: 'bold'
-                                    }}
-                                  >
+                                  <Typography variant="caption" sx={{ position: 'absolute', top: -20, color: 'text.secondary', fontWeight: 'bold' }}>
                                     {training.cat_time}
                                   </Typography>
-                                  <Typography 
-                                    variant="caption" 
-                                    sx={{ 
-                                      position: 'absolute', 
-                                      bottom: -20, 
-                                      color: 'text.secondary',
-                                      fontSize: '0.6rem',
-                                      transform: 'rotate(-45deg)',
-                                      transformOrigin: 'top left'
-                                    }}
-                                  >
+                                  <Typography variant="caption" sx={{ position: 'absolute', bottom: -20, color: 'text.secondary', fontSize: '0.6rem', transform: 'rotate(-45deg)', transformOrigin: 'top left' }}>
                                     {formatDate(training.training_date).slice(0, 5)}
                                   </Typography>
                                 </Box>
@@ -3152,11 +2928,7 @@ const TourniquetTraining = ({ showNotification }) => {
               </Grid>
             </DialogContent>
             <DialogActions sx={{ p: 2, bgcolor: '#f5f5f5' }}>
-              <Button 
-                onClick={() => setOpenSoldierDetails(false)}
-                variant="outlined"
-                startIcon={<CloseIcon />}
-              >
+              <Button onClick={() => setOpenSoldierDetails(false)} variant="outlined" startIcon={<CloseIcon />}>
                 סגור
               </Button>
             </DialogActions>
@@ -3166,6 +2938,8 @@ const TourniquetTraining = ({ showNotification }) => {
     </Box>
   );
 };
+
+
 
 // Training Analysis component
 const TrainingAnalysis = ({ showNotification }) => {

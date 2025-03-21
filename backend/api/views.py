@@ -98,6 +98,23 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"message": "הסיסמה שונתה בהצלחה"}, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# בתחילת הקובץ, אם אין כבר, ודא שיש את הייבוא הבא:
+from training.models import Soldier
+from rest_framework import generics, serializers
+
+# יצירת סריאלייזר פשוט עבור מודל Soldier
+class SoldierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Soldier
+        fields = ['id', 'name', 'personal_id', 'team']
+
+# יצירת API view שמחזיר את רשימת החיילים
+class SoldierListView(generics.ListAPIView):
+    """
+    API view להחזרת רשימת חיילים
+    """
+    queryset = Soldier.objects.all().order_by('team', 'name')
+    serializer_class = SoldierSerializer
 
 
 class ReferralViewSet(viewsets.ModelViewSet):

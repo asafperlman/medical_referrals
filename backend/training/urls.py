@@ -1,8 +1,6 @@
 # medical-referrals/backend/training/urls.py
-
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-
 from .views import (
     TeamTrainingViewSet,
     SoldierViewSet,
@@ -14,10 +12,9 @@ from .views import (
 
 # Define the router
 router = DefaultRouter()
-
 # הנתיבים צריכים להיות מותאמים למה שמצופה ב-Frontend
 router.register(r'team', TeamTrainingViewSet)
-router.register(r'soldiers', SoldierViewSet)
+router.register(r'soldiers', SoldierViewSet, basename='soldier')
 router.register(r'tourniquet', TourniquetTrainingViewSet)
 router.register(r'medics', MedicViewSet)
 router.register(r'medic', MedicTrainingViewSet)  # שינוי: medic במקום medic-training
@@ -27,6 +24,6 @@ urlpatterns = [
     # Include the router URLs
     path('', include(router.urls)),
     
-    # Custom views
-    path('stats/', TrainingStatsView.as_view(), name='training-stats'),
+    # Custom views - שינוי מתודת get ל-list
+    path('stats/', TrainingStatsView.as_view({'get': 'list'}), name='training-stats'),
 ]

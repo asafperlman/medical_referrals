@@ -1,15 +1,10 @@
-// medical-referrals/frontend/src/context/AuthContext.js
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
-// קרוב לתחילת הקובץ
 import { API_BASE_URL, API_PREFIX } from '../config/api-config';
 
-// שנה את הגדרת ה-API_URL
 export const API_URL = `${API_BASE_URL}${API_PREFIX}`;
-// יצירת API מרכזי
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -18,16 +13,38 @@ export const api = axios.create({
   },
 });
 
-// עדכון הטוקן בכותרות של בקשות API
+// שימוש במשתנה לניהול מזהה ה-interceptor
+let requestInterceptorId = null;
+
 const updateApiToken = (token) => {
   if (token) {
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log("Updating API token");
+    // ביטול interceptor קודם אם קיים
+    if (requestInterceptorId !== null) {
+      api.interceptors.request.eject(requestInterceptorId);
+    }
+    // הוספת interceptor חדש עם הטוקן המעודכן
+    requestInterceptorId = api.interceptors.request.use(
+      (config) => {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, 
+                    `Authorization: Bearer ${token.substring(0, 15)}...`);
+        return config;
+      },
+      (error) => {
+        console.error('API Request Error:', error);
+        return Promise.reject(error);
+      }
+    );
   } else {
-    delete api.defaults.headers.common['Authorization'];
+    if (requestInterceptorId !== null) {
+      api.interceptors.request.eject(requestInterceptorId);
+      requestInterceptorId = null;
+    }
+    console.log("Cleared API token");
   }
 };
 
-// יצירת context להרשאות
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -38,7 +55,6 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
   const navigate = useNavigate();
 
-  // הגדרת פונקציית handleLogout לפני השימוש בה
   const handleLogout = useCallback(() => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
@@ -51,78 +67,54 @@ export const AuthProvider = ({ children }) => {
     navigate('/login');
   }, [navigate]);
 
-  // האזנה לשגיאות API ולפקיעת תוקף של טוקן
+  // Interceptor לטיפול בתגובות API (כולל ניסיון רענון טוקן)
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
-        
-        // בדוק אם השגיאה היא 401 (לא מורשה) ואם התגובה נכשלה בגלל טוקן לא תקף
         if (error.response && error.response.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-          
           try {
-            // נסה לחדש את הטוקן
             const refreshToken = localStorage.getItem('refresh_token');
             if (!refreshToken) {
-              // אם אין refresh token, צא מהמערכת
               handleLogout();
               return Promise.reject(error);
             }
-            
-            const response = await axios.post(`${API_URL}/auth/refresh/`, {
-              refresh: refreshToken,
-            });
-            
-            // שמור את הטוקן החדש
+            const response = await axios.post(`${API_URL}/auth/refresh/`, { refresh: refreshToken });
             localStorage.setItem('access_token', response.data.access);
             setLastRefresh(new Date());
-            
-            // הוסף את הטוקן החדש לבקשה המקורית ושלח שוב
             originalRequest.headers['Authorization'] = `Bearer ${response.data.access}`;
             updateApiToken(response.data.access);
             return axios(originalRequest);
           } catch (refreshError) {
-            // אם רענון הטוקן נכשל, צא מהמערכת
             console.error("Token refresh failed:", refreshError);
             handleLogout();
             return Promise.reject(refreshError);
           }
         }
-        
-        // טיפול בשגיאות ספציפיות לשיפור חוויית המשתמש
         if (error.response) {
-          // רשימת שגיאות והודעות ידידותיות למשתמש
           const errorMessages = {
             400: 'בקשה לא תקינה, אנא בדוק את הנתונים שהוזנו',
             403: 'אין לך הרשאות לבצע פעולה זו',
             404: 'המשאב המבוקש לא נמצא',
             500: 'שגיאת שרת, אנא נסה שוב מאוחר יותר'
           };
-          
-          // הוסף את ההודעה המתאימה לאובייקט השגיאה אם קיימת
           if (errorMessages[error.response.status]) {
             error.friendlyMessage = errorMessages[error.response.status];
           }
-
-          // שמור את השגיאה במצב ה-context אם זו שגיאת הרשאה
           if (error.response.status === 401 || error.response.status === 403) {
             setAuthError(error.friendlyMessage || 'שגיאת הרשאה');
           }
         }
-        
         return Promise.reject(error);
       }
     );
-    
-    // ניקוי האזנה בעת הסרת הקומפוננטה
     return () => {
       api.interceptors.response.eject(interceptor);
     };
   }, [handleLogout]);
 
-  // קבלת מידע על המשתמש מהשרת
   const fetchUserInfo = useCallback(async () => {
     try {
       const response = await api.get('/users/me/');
@@ -131,12 +123,9 @@ export const AuthProvider = ({ children }) => {
       setAuthError(null);
     } catch (error) {
       console.error('Error fetching user info:', error);
-      
-      // בדוק אם השגיאה נובעת מבעיית הרשאה
       if (error.response && (error.response.status === 401 || error.response.status === 403)) {
         handleLogout();
       } else {
-        // שגיאה אחרת, לא קשורה להרשאות
         setAuthError('שגיאה בקבלת מידע המשתמש');
       }
     } finally {
@@ -144,96 +133,79 @@ export const AuthProvider = ({ children }) => {
     }
   }, [handleLogout]);
 
-  // בדיקת הרשאות בעת טעינת האפליקציה
+  // אתחול האימות – כולל בדיקת תוקף הטוקן ורענונו במידת הצורך
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('access_token');
-      
       if (token) {
-        // בדוק אם הטוקן תקף
         try {
-          // פענח את הטוקן כדי לבדוק את תוקפו
           const decodedToken = jwt_decode(token);
           const currentTime = Date.now() / 1000;
-          
           if (decodedToken.exp < currentTime) {
-            // אם הטוקן פג תוקף, נסה לחדש אותו
             const refreshToken = localStorage.getItem('refresh_token');
             if (refreshToken) {
               try {
-                const response = await axios.post(`${API_URL}/auth/refresh/`, {
-                  refresh: refreshToken,
-                });
-                
-                // שמור את הטוקן החדש
-                localStorage.setItem('access_token', response.data.access);
-                updateApiToken(response.data.access);
+                const response = await axios.post(`${API_URL}/auth/refresh/`, { refresh: refreshToken });
+                const newToken = response.data.access;
+                localStorage.setItem('access_token', newToken);
+                updateApiToken(newToken);
                 setLastRefresh(new Date());
-                
-                // קבל מידע על המשתמש
                 await fetchUserInfo();
+                console.log("Token refreshed successfully during init");
+                console.log("New token (first 15 chars):", newToken.substring(0, 15));
               } catch (error) {
-                // יציאה אם רענון הטוקן נכשל
                 console.error('Token refresh failed during init:', error);
                 handleLogout();
               }
             } else {
-              // יציאה אם אין refresh token
               handleLogout();
             }
           } else {
-            // אם הטוקן תקף, עדכן את API וקבל מידע על המשתמש
+            console.log("Valid token found during init");
             updateApiToken(token);
             await fetchUserInfo();
           }
         } catch (error) {
-          // טיפול בשגיאות פענוח הטוקן
           console.error('Token decode error:', error);
           handleLogout();
         }
       } else {
-        // אין טוקן, המשתמש לא מחובר
+        console.log("No token found during init");
         setIsLoading(false);
       }
     };
-
     initAuth();
   }, [fetchUserInfo, handleLogout]);
 
-  // פונקציה לריענון מידע משתמש במידת הצורך
   const refreshUserInfo = useCallback(async () => {
-    if (isAuthenticated) {
-      await fetchUserInfo();
-    }
+    if (isAuthenticated) await fetchUserInfo();
   }, [isAuthenticated, fetchUserInfo]);
 
-  // התחברות למערכת
   const login = async (email, password) => {
     try {
       setIsLoading(true);
       setAuthError(null);
+      console.log("[Auth] Attempting login for:", email);
+      const response = await axios.post(`${API_URL}/auth/login/`, { email, password });
+      const token = response.data.access;
       
-      const response = await axios.post(`${API_URL}/auth/login/`, {
-        email,
-        password,
-      });
-      
-      // שמור את הטוקנים
+      // Make sure tokens are saved to localStorage
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
       
-      // עדכן את כותרות ה-API
-      updateApiToken(response.data.access);
+      // Log token storage for debugging
+      console.log("[Auth] Tokens saved to localStorage");
+      console.log("[Auth] Access token:", response.data.access.substring(0, 15) + "...");
+      console.log("[Auth] Refresh token exists:", !!response.data.refresh);
       
-      // עדכן את מצב המשתמש
+      updateApiToken(token);
+      console.log("[Auth] Login successful. Token:", token.substring(0, 15) + "...");
       setUser(response.data.user);
       setIsAuthenticated(true);
       setLastRefresh(new Date());
-      
       return { success: true, user: response.data.user };
     } catch (error) {
       console.error('Login error:', error);
-      
       let errorMessage = 'שגיאה בהתחברות. נסה שוב.';
       if (error.response && error.response.data) {
         if (error.response.data.detail) {
@@ -242,7 +214,6 @@ export const AuthProvider = ({ children }) => {
           errorMessage = error.response.data.non_field_errors.join(', ');
         }
       }
-      
       setAuthError(errorMessage);
       return { success: false, message: errorMessage };
     } finally {
@@ -250,7 +221,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // פונקציה להחלפת סיסמה
   const changePassword = async (oldPassword, newPassword) => {
     try {
       await api.post('/users/change-password/', { 
@@ -260,7 +230,6 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Change password error:', error);
-      
       let errorMessage = 'שגיאה בהחלפת הסיסמה';
       if (error.response && error.response.data) {
         if (error.response.data.detail) {
@@ -271,12 +240,10 @@ export const AuthProvider = ({ children }) => {
           errorMessage = error.response.data.new_password[0];
         }
       }
-      
       return { success: false, message: errorMessage };
     }
   };
 
-  // פונקציה לעדכון פרטי משתמש
   const updateUserProfile = async (userData) => {
     try {
       const response = await api.patch('/users/me/', userData);
@@ -284,10 +251,8 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: response.data };
     } catch (error) {
       console.error('Update profile error:', error);
-      
       let errorMessage = 'שגיאה בעדכון פרטי המשתמש';
       if (error.response && error.response.data) {
-        // Extract error messages from response data
         const errors = [];
         for (const [field, messages] of Object.entries(error.response.data)) {
           if (Array.isArray(messages)) {
@@ -296,26 +261,21 @@ export const AuthProvider = ({ children }) => {
             errors.push(`${field}: ${messages}`);
           }
         }
-        
         if (errors.length > 0) {
           errorMessage = errors.join('; ');
         }
       }
-      
       return { success: false, message: errorMessage };
     }
   };
 
-  // פונקציה לבדיקת תוקף הטוקן הנוכחי
   const checkTokenValidity = useCallback(() => {
     const token = localStorage.getItem('access_token');
     if (!token) return false;
-    
     try {
       const decodedToken = jwt_decode(token);
       const currentTime = Date.now() / 1000;
-      
-      // הוסף שולי ביטחון של 5 דקות
+      // הוספת מרווח ביטחון של 5 דקות
       return decodedToken.exp > (currentTime + 300);
     } catch (error) {
       console.error('Token validity check error:', error);
@@ -323,30 +283,19 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  // פונקציה לקבלת ועדכון הטוקן אם צריך
   const getValidToken = useCallback(async () => {
-    // בדוק אם הטוקן נוכחי תקף
-    if (checkTokenValidity()) {
-      return localStorage.getItem('access_token');
-    }
-    
-    // נסה לחדש את הטוקן
+    if (checkTokenValidity()) return localStorage.getItem('access_token');
     const refreshToken = localStorage.getItem('refresh_token');
     if (!refreshToken) {
       handleLogout();
       return null;
     }
-    
     try {
-      const response = await axios.post(`${API_URL}/auth/refresh/`, {
-        refresh: refreshToken,
-      });
-      
+      const response = await axios.post(`${API_URL}/auth/refresh/`, { refresh: refreshToken });
       const newToken = response.data.access;
       localStorage.setItem('access_token', newToken);
       updateApiToken(newToken);
       setLastRefresh(new Date());
-      
       return newToken;
     } catch (error) {
       console.error('Token refresh failed:', error);
@@ -355,60 +304,42 @@ export const AuthProvider = ({ children }) => {
     }
   }, [checkTokenValidity, handleLogout]);
 
-  // מעקב אחר פעילות משתמש לריענון אוטומטי של הטוקן
   useEffect(() => {
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     const refreshTime = 10 * 60 * 1000; // 10 דקות
-    
-    // מאזין לפעילות משתמש שמפעיל רענון טוקן
     const refreshTokenOnActivity = async () => {
       if (isAuthenticated && lastRefresh) {
         const now = new Date();
         const timeSinceLastRefresh = now - lastRefresh;
-        
-        // בדוק אם עברו לפחות 10 דקות מאז הרענון האחרון
         if (timeSinceLastRefresh > refreshTime && !checkTokenValidity()) {
           const refreshToken = localStorage.getItem('refresh_token');
           if (refreshToken) {
             try {
-              const response = await axios.post(`${API_URL}/auth/refresh/`, {
-                refresh: refreshToken,
-              });
-              
+              const response = await axios.post(`${API_URL}/auth/refresh/`, { refresh: refreshToken });
               localStorage.setItem('access_token', response.data.access);
               updateApiToken(response.data.access);
               setLastRefresh(new Date());
             } catch (error) {
               console.error('Auto refresh token error:', error);
-              // אם הריענון נכשל, המשתמש יצטרך להתחבר מחדש בפעם הבאה שיקבל 401
             }
           }
         }
       }
     };
-    
-    // הוסף מאזינים לפעילות
     events.forEach(event => document.addEventListener(event, refreshTokenOnActivity, false));
-    
-    // הסר מאזינים בעת ניקוי
     return () => {
       events.forEach(event => document.removeEventListener(event, refreshTokenOnActivity, false));
     };
   }, [isAuthenticated, lastRefresh, checkTokenValidity]);
 
-  // שמירת מידע על ביקור אחרון בעמוד
   const saveLastVisited = useCallback((path) => {
     if (isAuthenticated && user) {
       localStorage.setItem('lastVisitedPath', path);
     }
   }, [isAuthenticated, user]);
 
-  // קבלת עמוד הביקור האחרון
-  const getLastVisited = useCallback(() => {
-    return localStorage.getItem('lastVisitedPath') || '/';
-  }, []);
+  const getLastVisited = useCallback(() => localStorage.getItem('lastVisitedPath') || '/', []);
 
-  // פונקציה לקבלת התוויה של עדיפות
   const getPriorityLabel = useCallback((priority) => {
     const labels = {
       highest: 'דחוף ביותר',
@@ -421,7 +352,6 @@ export const AuthProvider = ({ children }) => {
     return labels[priority] || priority;
   }, []);
 
-  // פונקציה לקבלת התוויה של סטטוס
   const getStatusLabel = useCallback((status) => {
     const labels = {
       new: 'חדש',
@@ -440,15 +370,11 @@ export const AuthProvider = ({ children }) => {
     return labels[status] || status;
   }, []);
 
-  // פונקציות עזר לפורמט תאריכים
   const formatDate = useCallback((dateString) => {
     if (!dateString) return '—';
-    
     const days = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
     const date = new Date(dateString);
-    const dayOfWeek = days[date.getDay()];
-    
-    return `${dayOfWeek}, ${date.toLocaleDateString('he-IL')}`;
+    return `${days[date.getDay()]}, ${date.toLocaleDateString('he-IL')}`;
   }, []);
   
   const formatTime = useCallback((dateString) => {
@@ -459,18 +385,60 @@ export const AuthProvider = ({ children }) => {
   
   const formatDateTime = useCallback((dateString) => {
     if (!dateString) return '—';
-    
     const days = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'יום שבת'];
     const date = new Date(dateString);
-    const dayOfWeek = days[date.getDay()];
-    
-    return `${dayOfWeek}, ${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+    return `${days[date.getDay()]}, ${date.toLocaleDateString('he-IL')} ${date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
   }, []);
 
-  // הגדר את logout כמפנה ל-handleLogout
+  const debugRequest = async (url, method = 'get', data = null) => {
+    console.log(`[DEBUG] Sending ${method.toUpperCase()} request to: ${url}`);
+    console.log(`[DEBUG] Token exists: ${!!localStorage.getItem('access_token')}`);
+    try {
+      let config = {
+        url,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      };
+      if (data) config.data = data;
+      console.log('[DEBUG] Request config:', config);
+      const response = await axios(config);
+      console.log('[DEBUG] Response:', response.status, response.data);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('[DEBUG] Request failed:', error);
+      console.error('[DEBUG] Response status:', error.response?.status);
+      console.error('[DEBUG] Response data:', error.response?.data);
+      return { success: false, status: error.response?.status, data: error.response?.data, error };
+    }
+  };
+
+  const fetchTrainingData = async (endpoint, method = 'get', data = null) => {
+    try {
+      const token = await getValidToken();
+      if (!token) throw new Error("No valid token available");
+      const url = `${API_URL}/trainings/${endpoint}`;
+      console.log(`[Training API] Calling ${method.toUpperCase()} ${url}`);
+      console.log(`[Training API] Token: ${token.substring(0, 15)}...`);
+      const config = {
+        url,
+        method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      };
+      if (data) config.data = data;
+      const response = await axios(config);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`[Training API] Error in ${endpoint}:`, error);
+      console.error(`[Training API] Response:`, error.response?.data);
+      return { success: false, error: error.response?.data || error.message };
+    }
+  };
+
   const logout = handleLogout;
 
-  // ערכי הקונטקסט שנחשפים לקומפוננטים
   const contextValue = {
     user,
     isAuthenticated,
@@ -486,12 +454,13 @@ export const AuthProvider = ({ children }) => {
     updateUserProfile,
     saveLastVisited,
     getLastVisited,
-    // פונקציות עזר
     getPriorityLabel,
     getStatusLabel,
     formatDate,
     formatTime,
-    formatDateTime
+    formatDateTime,
+    debugRequest,
+    fetchTrainingData
   };
 
   return (
@@ -501,11 +470,8 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Hook לשימוש פשוט בערכי ההרשאות
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

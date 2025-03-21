@@ -27,14 +27,121 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Add response interceptor to handle token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If error is 401 Unauthorized and it's not a retry
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
+        }
+        
+        const response = await axios.post(`${API_URL}/auth/refresh/`, {
+          refresh: refreshToken
+        });
+        
+        if (response.data.access) {
+          localStorage.setItem('access_token', response.data.access);
+          
+          // Update the original request with new token
+          originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
+          return axios(originalRequest);
+        }
+      } catch (refreshError) {
+        // If refresh fails, clear tokens and redirect to login
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        
+        // Redirect to login page (if using React Router)
+        // window.location.href = '/login';
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // Base URL for training API
 const BASE_URL = '/api/trainings';
 
+// Authentication functions
+export const login = async (credentials) => {
+  const response = await api.post('/auth/login/', credentials);
+  if (response.data.access) {
+    localStorage.setItem('access_token', response.data.access);
+    localStorage.setItem('refresh_token', response.data.refresh);
+  }
+  return response.data;
+};
+
+export const logout = () => {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+};
+
+export const refreshToken = async () => {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
+  
+  const response = await api.post('/auth/refresh/', {
+    refresh: refreshToken
+  });
+  
+  if (response.data.access) {
+    localStorage.setItem('access_token', response.data.access);
+  }
+  return response.data;
+};
+// Helper to get safe data (with mock fallback)
+const getSafeData = async (endpoint, mockDataKey) => {
+  try {
+    const response = await api.get(endpoint);
+    return response.data;
+  } catch (error) {
+    console.warn(`API endpoint ${endpoint} not available, using mock data`, error);
+    return mockData[mockDataKey];
+  }
+};
 // Team Training
 export const getTeamTrainings = async () => {
   return await getSafeData('/trainings/team/', 'teamTrainings'); // נתיב נכון לפי הגדרת השרת
 };
 
+
+
+// Mock data for fallback
+const mockData = {
+  teams: ['חוד', 'אתק', 'רתק', 'מפלג'],
+  soldiers: [
+    { id: 1, name: 'ישראל ישראלי', personal_id: '8371234', team: 'חוד' },
+    { id: 2, name: 'משה כהן', personal_id: '8367890', team: 'אתק' },
+    { id: 3, name: 'דוד לוי', personal_id: '8412345', team: 'רתק' },
+    { id: 4, name: 'יעקב גולדברג', personal_id: '8356789', team: 'חוד' },
+    { id: 5, name: 'אברהם פרידמן', personal_id: '8391234', team: 'אתק' }
+  ],
+  teamTrainings: [
+    { id: 1, date: '2023-02-15', team: 'אתק', scenario: 'פצוע אחד - דימום מאסיבי', location: 'שטח אימונים צפוני', performance_rating: 4, notes: 'ביצוע טוב, תגובה מהירה' },
+    { id: 2, date: '2023-02-20', team: 'חוד', scenario: 'פצוע בודד - חבלת ראש', location: 'בסיס', performance_rating: 3, notes: 'נדרש שיפור בתיאום צוותי' }
+  ],
+  tourniquetTrainings: [
+    { id: 1, soldier_id: 1, training_date: '2023-02-10', cat_time: '22', passed: true, notes: 'ביצוע טוב' },
+    { id: 2, soldier_id: 2, training_date: '2023-02-12', cat_time: '31', passed: true, notes: 'נדרש שיפור במהירות' }
+  ],
+  medicTrainings: [
+    { id: 1, medic_id: 1, training_date: '2023-02-05', training_type: 'החייאה', performance_rating: 4, notes: 'ביצוע טוב' },
+    { id: 2, medic_id: 2, training_date: '2023-02-08', training_type: 'טיפול בחבלות', performance_rating: 3, notes: 'נדרש שיפור' }
+  ]
+};
 
 export const createTeamTraining = async (data) => {
   const response = await api.post(`${BASE_URL}/team/`, data);
